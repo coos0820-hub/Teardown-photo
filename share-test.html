@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拆解照片 分享測試</title>
+<style>
+:root{--navy:#0D1B2A;--navy2:#1B2D44;--blue:#1565C0;--green2:#2E7D32;--red2:#E53935;--grey2:#546E7A;--border:#D0D7DE;--bg:#F0F2F5}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Microsoft JhengHei','PingFang TC',system-ui,sans-serif;background:var(--bg);color:#212121;font-size:15px;line-height:1.5}
+.ph{background:linear-gradient(135deg,#0D1B2A,#1B2D44);color:#fff;padding:12px 16px;border-bottom:3px solid #E53935}
+.ph h1{font-size:16px}.ph .sub{font-size:11px;color:#90CAF9}
+.main{padding:12px;max-width:640px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--border);border-radius:11px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;font-weight:700;color:var(--grey2);margin:10px 0 4px}
+.inp{width:100%;border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:16px;font-family:inherit}
+.btn{display:block;width:100%;border:none;border-radius:8px;padding:12px;font-size:15px;font-weight:700;color:#fff;background:var(--blue);margin-top:10px;cursor:pointer}
+.btn.g{background:var(--green2)}.btn.o{background:#fff;color:var(--grey2);border:1px solid var(--border)}
+.log{font-size:12.5px;background:#ECEFF1;border-radius:6px;padding:8px;margin-top:10px;white-space:pre-wrap;word-break:break-all}
+.thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.thumbs img{width:72px;height:72px;object-fit:cover;border-radius:6px}
+.hint{font-size:12px;color:var(--grey2)}
+</style>
+</head>
+<body>
+<div class="ph"><h1>📷 拆解照片 · 分享測試</h1><div class="sub">確認手機能把照片＋主旨＋內文一起帶進 Gmail</div></div>
+<div class="main">
+<div class="card">
+  <label>收件信箱</label><input class="inp" id="to" placeholder="你的公司信箱">
+  <label>工單號 WO</label><input class="inp" id="wo" value="WO2026100520101">
+  <label>大項</label><select class="inp" id="sec">
+    <option>01 入廠／拆解前檢查</option><option>02 拆解檢測-耗材</option><option selected>03 拆解檢測-機構</option>
+    <option>04 拆解檢測-傳動／散熱</option><option>05 零件量測／加工需求</option><option>06 組裝紀錄</option><option>07 性能測試</option></select>
+  <label>備註</label><textarea class="inp" id="note" rows="3">測試備註：轉子 a-side 有刮傷</textarea>
+  <label>照片（可多選，或直接拍照）</label><input type="file" id="pics" accept="image/*" multiple>
+  <div class="thumbs" id="th"></div>
+  <button class="btn g" onclick="doShare()">① 分享到 Gmail（照片＋主旨＋內文）</button>
+  <button class="btn o" onclick="copySubj()">主旨沒帶進去？按這裡複製主旨，再貼上</button>
+  <button class="btn" onclick="doQuery()">② 測試「查詢」信（不含照片，用 mailto）</button>
+  <div class="log" id="log">等待測試…</div>
+  <p class="hint" style="margin-top:10px">測試後請回報：手機型號（iPhone／Android）、①Gmail 裡「主旨」「內文」「照片」各有沒有帶到、照片大小約多少；②收件人與主旨有沒有預先填好。</p>
+</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const log=t=>{$('log').textContent=t};
+try{$('to').value=localStorage.getItem('st_to')||''}catch(e){}
+$('to').onchange=()=>{try{localStorage.setItem('st_to',$('to').value)}catch(e){}};
+let FILES=[];
+$('pics').onchange=async e=>{
+  FILES=[];$('th').innerHTML='';const src=[...e.target.files];let before=0,after=0;
+  const code=$('sec').value.slice(0,2);
+  for(let i=0;i<src.length;i++){
+    before+=src[i].size;
+    const f=await shrink(src[i],1600,0.8,`${$('wo').value.trim()}_${code}_${String(i+1).padStart(2,'0')}.jpg`);
+    after+=f.size;FILES.push(f);
+    const im=new Image();im.src=URL.createObjectURL(f);$('th').appendChild(im);
+  }
+  log(`${src.length} 張：原始 ${(before/1048576).toFixed(1)} MB → 壓縮後 ${(after/1048576).toFixed(1)} MB`);
+};
+function shrink(file,max,q,name){return new Promise((res,rej)=>{
+  const img=new Image();img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight,s=Math.min(1,max/Math.max(w,h));
+    const c=document.createElement('canvas');c.width=Math.round(w*s);c.height=Math.round(h*s);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    c.toBlob(b=>res(new File([b],name,{type:'image/jpeg'})),'image/jpeg',q)};
+  img.onerror=()=>rej(new Error('讀不到照片'));img.src=URL.createObjectURL(file)})}
+const subj=()=>`[拆解] ${$('wo').value.trim()} | ${$('sec').value}`;
+const body=()=>`收件：${$('to').value}\n主旨：${subj()}\n\n${$('note').value}`;
+async function doShare(){
+  if(!FILES.length){log('請先選照片');return}
+  const data={title:subj(),text:body(),files:FILES};
+  if(!navigator.canShare||!navigator.canShare(data)){log('⚠ 這支手機的瀏覽器不支援分享照片（請記下手機型號與瀏覽器）');return}
+  try{await navigator.share(data);log('已開啟分享。請在 Gmail 確認主旨／內文／照片，填收件人後寄出。')}
+  catch(e){log('分享取消或失敗：'+e.message)}
+}
+function copySubj(){navigator.clipboard.writeText(subj()).then(()=>log('已複製主旨：'+subj()),()=>log('無法複製，主旨是：'+subj()))}
+function doQuery(){location.href=`mailto:${encodeURIComponent($('to').value)}?subject=${encodeURIComponent('[查詢] '+$('wo').value.trim())}&body=${encodeURIComponent('查詢全部大項')}`}
+</script>
+</body>
+</html>
