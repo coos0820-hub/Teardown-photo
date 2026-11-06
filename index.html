@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拆解照片系統 | Teardown Photo Records</title>
+<style>
+:root{--navy:#0D1B2A;--navy2:#1B2D44;--blue:#1565C0;--blue2:#1976D2;
+  --red:#B71C1C;--red2:#E53935;--orange:#E65100;--green:#1B5E20;--green2:#2E7D32;
+  --grey1:#212121;--grey2:#546E7A;--grey3:#B0BEC5;--grey4:#ECEFF1;
+  --bg:#F0F2F5;--card:#FFFFFF;--border:#D0D7DE}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Microsoft JhengHei','PingFang TC',system-ui,sans-serif;background:var(--bg);color:var(--grey1);font-size:13px;line-height:1.5}
+button{font-family:inherit}
+.ph{background:linear-gradient(135deg,#0D1B2A,#1B2D44);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:12px;border-bottom:3px solid #E53935;position:sticky;top:0;z-index:100;flex-wrap:wrap}
+.ph h1{font-size:16px;font-weight:700}.ph .sub{font-size:10px;color:#90CAF9;margin-top:2px}
+.h1en{font-size:12px;font-weight:600;opacity:.75;margin-left:8px;letter-spacing:.3px}
+.ph .right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sync-btn{background:#E53935;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer}
+.sync-btn.g{background:rgba(255,255,255,.15)}
+.sync-st{font-size:10.5px;color:#90CAF9;max-width:320px;text-align:right}
+.me{font-size:12px;color:#fff;background:rgba(255,255,255,.12);border-radius:7px;padding:5px 10px;cursor:pointer;border:none}
+.tabs{display:flex;gap:1px;padding:8px 12px 0;background:var(--navy2);overflow-x:auto;position:sticky;top:57px;z-index:99}
+.tab{padding:7px 15px;border-radius:7px 7px 0 0;font-size:12px;font-weight:600;color:#90CAF9;background:rgba(255,255,255,.07);white-space:nowrap;border:none;cursor:pointer;display:flex;align-items:center;gap:6px}
+.tab.active{background:#fff;color:var(--grey1)}
+.tab.adm{margin-left:auto;color:#FFAB91;background:rgba(229,57,53,.15)}
+.tab .tx{border:none;background:none;color:inherit;opacity:.55;font-size:13px;line-height:1;padding:1px 3px;border-radius:4px;cursor:pointer}
+.tab .tx:hover{opacity:1;background:rgba(229,57,53,.2);color:#E53935}
+.tab .dot{color:#FFB300;font-size:15px;line-height:1}
+.tab.active .dot{color:var(--orange)}
+.panel{display:none}.panel.active{display:block}
+.main{padding:12px;max-width:1500px;margin:0 auto}
+.card{background:var(--card);border-radius:11px;border:1px solid var(--border);margin-bottom:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.card-hd{padding:9px 15px;display:flex;align-items:center;gap:8px;background:var(--grey4);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.card-hd h2{font-size:13px;font-weight:700;flex:1}
+.card-bd{padding:12px 15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1.5px solid var(--border);background:#fff;border-radius:18px;padding:5px 13px;font-size:12.5px;cursor:pointer;color:var(--grey1);font-weight:600;line-height:1.2}
+.chip:hover{border-color:var(--blue2)}
+.chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.chip.yes{background:#E8F5E9;border-color:var(--green2);color:var(--green)}
+.chip.no{background:#FFEBEE;border-color:var(--red2);color:var(--red)}
+.chip.yes::before{content:'✔ '}.chip.no::before{content:'✖ '}
+.inp{border:1.5px solid var(--border);border-radius:6px;padding:5px 9px;font-size:13px;font-family:inherit;height:32px;outline:none;background:#fff}
+.inp:focus{border-color:var(--blue2);background:#f0f8ff}
+textarea.inp{height:auto;min-height:70px;width:100%;resize:vertical;line-height:1.55;padding:7px 9px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hint{font-size:11px;color:var(--grey2)}
+.btn{border:none;border-radius:7px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer}
+.btn-p{background:var(--green2);color:#fff}.btn-p:hover{background:var(--green)}
+.btn-b{background:var(--blue);color:#fff}.btn-b:hover{background:var(--blue2)}
+.btn-o{background:#fff;border:1px solid var(--border);color:var(--grey2);font-weight:600}
+.btn-r{background:var(--red2);color:#fff}
+.btn-s{padding:5px 11px;font-size:11.5px}
+.tw{overflow-x:auto}
+table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
+table.dt th{background:var(--navy2);color:#fff;padding:6px 8px;text-align:left;font-weight:600;white-space:nowrap}
+table.dt td{padding:6px 8px;border-bottom:1px solid #eef1f4;vertical-align:middle}
+table.dt tr.click{cursor:pointer}table.dt tr.click:hover td{background:#f0f6ff}
+.tag{display:inline-block;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700;color:#fff;white-space:nowrap}
+.empty{text-align:center;color:var(--grey3);padding:24px}
+.ib{background:none;border:none;color:var(--grey3);font-size:14px;padding:1px 5px;border-radius:4px;cursor:pointer}
+.ib:hover{background:#E3F2FD;color:var(--blue)}.ib.del:hover{background:#FFEBEE;color:var(--red2)}
+.box{background:#F5F8FF;border:1.5px solid var(--blue2);border-radius:9px;padding:12px 14px;margin-bottom:12px}
+.box.y{background:#FFF8E1;border-color:#F9A825}.box.r{background:#FFEBEE;border-color:var(--red2)}
+.box p{font-size:11.5px;color:var(--grey2);line-height:1.65;margin-top:6px}
+.wohd{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px 14px}
+.wohd label{font-size:11.5px;font-weight:700;color:var(--grey2);display:block;margin-bottom:3px}
+.wohd .inp{width:100%}
+.sec{border:1px solid var(--border);border-radius:10px;margin-bottom:12px;background:#fff;overflow:hidden}
+.sec.dirty{border-color:#FB8C00;box-shadow:0 0 0 2px rgba(251,140,0,.15)}
+.sec-hd{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#F7F9FC;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.sec-hd b{font-size:13.5px}.sec-hd .cnt{font-size:11.5px;color:var(--grey2)}
+.sec-hd .sp{flex:1}
+.sec-bd{padding:10px 14px}
+.unsaved{font-size:11.5px;color:var(--orange);font-weight:700;display:none}
+.dirty .unsaved,.dirty>.unsaved{display:inline}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:10px}
+.th{position:relative;border-radius:7px;overflow:hidden;background:var(--grey4);aspect-ratio:4/3;cursor:zoom-in;border:1px solid var(--border)}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th .cap{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.65));color:#fff;font-size:10.5px;padding:10px 6px 3px}
+.th .x{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:none}
+.th .ed{position:absolute;top:3px;right:29px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:11px;height:22px;padding:0 7px;font-size:11px;cursor:pointer;display:none}
+.th:hover .x,.th:hover .ed{display:block}
+#pe .db{text-align:center;background:#2b2b2b;padding:12px}
+#pe canvas{max-width:100%;cursor:move;touch-action:none}
+.drop{border:2px dashed var(--grey3);border-radius:8px;padding:10px;text-align:center;color:var(--grey2);font-size:12px;margin-bottom:10px}
+.drop.on{border-color:var(--blue2);background:#F0F7FF;color:var(--blue)}
+.fields{display:grid;grid-template-columns:minmax(90px,auto) 1fr;gap:8px 12px;align-items:center;margin-bottom:10px}
+.fields>label{font-size:12px;font-weight:700;color:var(--grey2)}
+.fields .inp{max-width:420px;width:100%}
+.hist{font-size:11.5px;color:var(--grey2);margin-top:6px;border-top:1px dashed var(--border);padding-top:6px;display:none}
+.hist div{margin:3px 0}
+.fsx{border:0;margin:0;padding:0;min-width:0}
+.ro .rw-only,body.guest .rw-only,body.guest .gw-only{display:none!important}
+.me.gst{background:#FFB300;color:#3E2723;font-weight:800}
+.own{font-size:11.5px;font-weight:700;border-radius:10px;padding:1px 8px;background:#E3F2FD;color:var(--blue)}
+.ro .own{background:#ECEFF1;color:var(--grey2)}
+.owners{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;background:#F7F9FC;border:1px solid var(--border);border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:12.5px}
+.owners b{color:var(--grey2)}
+.donebar{background:#E8F5E9;border:1.5px solid var(--green2);border-radius:9px;padding:9px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:var(--green);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.authbtn{background:#FFB300;color:#3E2723;border:none;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer}
+.req{background:#FFF3E0;border:1.5px solid #FB8C00;border-radius:9px;padding:10px 14px;margin-bottom:12px;font-size:13px;white-space:pre-wrap}
+.req b{color:var(--orange)}
+.mbg{position:fixed;inset:0;background:rgba(13,27,42,.55);display:none;align-items:flex-start;justify-content:center;z-index:500;padding:30px 12px;overflow:auto}
+.mbg.on{display:flex}
+.modal{background:#fff;border-radius:12px;width:min(920px,100%);box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.mhd{background:var(--navy);color:#fff;padding:12px 18px;border-radius:12px 12px 0 0;display:flex;align-items:center}
+.mhd h3{font-size:14px;flex:1}
+.mtabs{display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.mtab{border:none;background:none;padding:7px 12px;font-size:12.5px;font-weight:600;color:var(--grey2);cursor:pointer;border-bottom:2px solid transparent}
+.mtab.on{color:var(--blue);border-bottom-color:var(--blue)}
+.mp{display:none;padding:16px 18px}.mp.on{display:block}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.mgrid label{font-size:12px;font-weight:700;color:var(--grey2);display:block;margin-bottom:4px}
+textarea.ta{width:100%;height:230px;border:1.5px solid var(--border);border-radius:7px;padding:7px 9px;font-size:12.5px;font-family:inherit;resize:vertical;line-height:1.55}
+textarea.code{font-family:Consolas,'Microsoft JhengHei',monospace;font-size:12.5px;height:420px;white-space:pre;overflow-wrap:normal;overflow-x:auto}
+.mft{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+pre.help{background:#F7F9FC;border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-size:12px;line-height:1.6;white-space:pre-wrap;margin-bottom:8px;font-family:inherit}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:800;display:none;align-items:center;justify-content:center;flex-direction:column}
+#lb.on{display:flex}
+#lb img{max-width:96vw;max-height:84vh;object-fit:contain}
+#lb .bar{color:#fff;margin-top:10px;display:flex;gap:12px;align-items:center;font-size:13px}
+#lb button{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:7px;padding:8px 14px;font-size:14px;cursor:pointer}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#263238;color:#fff;padding:10px 18px;border-radius:9px;font-size:13px;z-index:900;display:none;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.busy{position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:850;display:none;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--blue)}
+.busy.on{display:flex}
+#printArea{display:none}
+@media print{
+  body{background:#fff;font-size:11pt}
+  .ph,.tabs,.main,.mbg,#lb,#toast,.busy{display:none!important}
+  #printArea{display:block}
+  .pr-hd{border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}
+  .pr-hd h1{font-size:15pt}.pr-hd table{width:100%;font-size:10pt;margin-top:4px}.pr-hd td{padding:2px 6px}
+  .pr-sec h2{font-size:12pt;background:#eee;padding:4px 8px;margin:8px 0 6px}
+  .pr-note{font-size:10pt;white-space:pre-wrap;margin:0 0 6px;padding:0 4px}
+  .pr-ph{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .pr-ph figure{page-break-inside:avoid;border:1px solid #ccc;padding:3px}
+  .pr-ph img{width:100%;max-height:8.5cm;object-fit:contain;display:block}
+  .pr-ph figcaption{font-size:8pt;color:#555;text-align:center}
+}
+@media(max-width:700px){.h1en,.ph .sub,.sync-st{display:none}.ph{padding:8px 12px}.tabs{top:49px}.main{padding:8px}
+  .thumbs{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}.fields{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="ph">
+  <div><h1>拆解照片系統<span class="h1en">Teardown Photo Records</span></h1><div class="sub">台灣普熙 技術服務部 · 拆解區 ／ 組裝區 ／ 辦公室 · V1.3</div></div>
+  <div class="right">
+    <span class="sync-st" id="st">尚未連線共用資料夾</span>
+    <button class="authbtn" id="authBtn" style="display:none" onclick="authOff()" title="結束授權模式"></button>
+    <button class="me" id="meBtn" onclick="askMe()">👤 未設定</button>
+    <button class="sync-btn" id="connBtn" onclick="connect(true)">📂 連線資料夾</button>
+    <button class="sync-btn g" onclick="reloadAll()" title="重新讀取">🔄 重新整理</button>
+    <button class="sync-btn g" onclick="showHelp()" title="使用說明">❓</button>
+  </div>
+</div>
+<div class="tabs" id="tabs"></div>
+
+<div class="main" id="main">
+  <div class="panel active" id="p-list">
+    <div class="card gw-only"><div class="card-hd"><h2>➕ 新增／開啟工單</h2></div><div class="card-bd">
+      <div class="row">
+        <input class="inp" id="newWo" placeholder="工單號 WO，例如 WO2026100520101" style="width:280px" onkeydown="if(event.key==='Enter')newWO()">
+        <button class="btn btn-p" onclick="newWO()">建立／開啟</button>
+        <span class="hint">輸入已存在的工單號會直接開啟；可以同時開多張工單，在上方分頁切換</span>
+      </div>
+    </div></div>
+    <div class="card"><div class="card-hd"><h2>📋 工單清單</h2>
+      <input class="inp" id="q" placeholder="搜尋 WO／客戶／型號／序號" style="width:240px" oninput="renderList()">
+      <select class="inp" id="qSt" onchange="renderList()"></select>
+      <span class="hint" id="listInfo"></span>
+    </div><div class="card-bd tw"><table class="dt" id="listTbl"></table></div></div>
+  </div>
+</div>
+
+<!-- 主檔與設定 -->
+<div class="mbg" id="adm"><div class="modal">
+  <div class="mhd"><h3>⚙ 主檔與設定</h3><button class="ib" style="color:#fff;font-size:18px" onclick="closeAdmin()">✕</button></div>
+  <div class="mtabs">
+    <button class="mtab on" data-m="list" onclick="mTab('list')">清單</button>
+    <button class="mtab" data-m="sec" onclick="mTab('sec')">大項與欄位</button>
+    <button class="mtab" data-m="req" onclick="mTab('req')">客戶固定要求</button>
+    <button class="mtab" data-m="auth" onclick="mTab('auth')">授權人員</button>
+    <button class="mtab" data-m="del" onclick="mTab('del')">已刪除工單</button>
+    <button class="mtab" data-m="sys" onclick="mTab('sys')">系統</button>
+  </div>
+  <div class="mp on" id="m-list">
+    <div class="hint" style="margin-bottom:10px">每行一個項目，順序就是畫面上的順序。</div>
+    <div class="mgrid">
+      <div><label>人員</label><textarea class="ta" id="mStaff"></textarea></div>
+      <div><label>客戶</label><textarea class="ta" id="mCust"></textarea></div>
+      <div><label>機種</label><textarea class="ta" id="mFam"></textarea></div>
+      <div><label>工單狀態</label><textarea class="ta" id="mStat"></textarea></div>
+    </div>
+  </div>
+  <div class="mp" id="m-sec">
+<pre class="help"><b>寫法</b>：大項一行（頂格寫「代碼 名稱 ＠階段」，階段用來分負責人，例如 ＠拆解清洗、＠組裝、＠測試），底下的欄位每行<b>前面空兩格</b>，格式「類型：欄位名稱」或「類型：欄位名稱＝選項1,選項2,…」
+<b>類型</b>：文字、數字、日期、人員（從人員清單選）、單選、複選、檢查（每個項目點選 ✔是／✖否）
+每個大項都自動有「照片」和「備註」，不用寫。<b>大項代碼是資料夾名稱，已使用的代碼請勿修改</b>；欄位改名後，舊資料要改回原名才看得到。</pre>
+    <textarea class="ta code" id="mSecDef" spellcheck="false"></textarea>
+    <div class="row" style="margin-top:6px"><button class="btn btn-o btn-s" onclick="checkSecDef()">✔ 檢查格式</button><button class="btn btn-o btn-s" onclick="if(confirm('還原成系統預設的大項與欄位？'))$('mSecDef').value=secDefText(DEFAULT_MASTER.secDefs)">↺ 還原預設</button><span class="hint" id="secChk"></span></div>
+  </div>
+  <div class="mp" id="m-req">
+    <div class="hint" style="margin-bottom:10px">每行一個客戶：「客戶名稱｜要求內容」。選到該客戶的工單時，最上方會顯示橘色提醒。要換行請用「／」。</div>
+    <textarea class="ta" id="mReq" style="height:300px" placeholder="英特格｜拆解前全機外觀 4 面拍照／油品需留樣"></textarea>
+  </div>
+  <div class="mp" id="m-auth">
+    <div class="hint" style="margin-bottom:10px">授權人員可以：修改別人負責的階段、轉交負責人、解鎖「完成」的工單、刪除已有資料的工單。做這些動作時要輸入<b>自己的 PIN</b>（管理密碼也可以），通過後 30 分鐘內有效。PIN 只存加密後的值，忘記請重設。</div>
+    <div id="authList" style="margin-bottom:10px"></div>
+    <div class="row"><select class="inp" id="authAdd" style="min-width:200px"></select><input class="inp" id="authPin" type="password" placeholder="PIN（至少 4 碼）" style="width:160px"><button class="btn btn-b btn-s" onclick="addAuth()">新增／重設 PIN</button></div>
+    <div class="hint" style="margin-top:6px">修改後按下方「💾 儲存主檔」才會生效。</div>
+  </div>
+  <div class="mp" id="m-del"><div id="delList"></div></div>
+  <div class="mp" id="m-sys">
+    <div class="box"><b>資料夾：</b><span id="dirName">未連線</span>
+      <div class="row" style="margin-top:8px"><button class="btn btn-b btn-s" onclick="connect(true,true)">📂 重新選擇資料夾</button></div>
+      <p>每張工單一個子資料夾，照片依大項分類；主檔存在「_系統」資料夾。修改備註會另存新版本，畫面顯示最新版。</p></div>
+    <div class="box"><b>這台電腦固定為訪客</b>　<span id="glSt" class="hint"></span>
+      <div class="row" style="margin-top:8px"><button class="btn btn-o btn-s" onclick="setGuestLock(true)">🔒 固定為訪客</button><button class="btn btn-o btn-s" onclick="setGuestLock(false)">解除</button></div>
+      <p>適合給展示螢幕或只需要查看的電腦：固定後這台只能以「訪客」瀏覽，要切換成工作人員需輸入管理密碼。只影響這台電腦。</p></div>
+    <div class="box y"><b>管理密碼</b>　<span id="pwSt" class="hint"></span>
+      <div class="row" style="margin-top:8px"><input class="inp" id="mPw" type="password" placeholder="輸入新密碼" style="width:200px">
+        <button class="btn btn-o btn-s" onclick="setPw()">設定／變更</button><button class="btn btn-o btn-s" onclick="clearPw()">移除密碼</button></div>
+      <p>進入「⚙ 主檔與設定」、永久刪除工單、刪除照片需要密碼。真正的檔案權限仍由共用資料夾帳號控制。</p></div>
+    <div class="box"><b>匯出</b><div class="row" style="margin-top:8px"><button class="btn btn-o btn-s" onclick="exportCSV()">⬇ 匯出工單清單 CSV</button></div></div>
+    <div class="hint" id="sysInfo"></div>
+  </div>
+  <div class="mft"><button class="btn btn-o" onclick="closeAdmin()">取消</button><button class="btn btn-p" onclick="saveAdmin()">💾 儲存主檔</button></div>
+</div></div>
+
+<div class="mbg" id="meDlg"><div class="modal" style="width:min(480px,100%)">
+  <div class="mhd"><h3>👤 我是誰？</h3><button class="ib" style="color:#fff;font-size:18px" onclick="$('meDlg').classList.remove('on')">✕</button></div>
+  <div style="padding:16px 18px"><div class="hint" style="margin-bottom:10px">上傳照片和備註會記錄你的名字。共用電腦請每次作業前確認。</div>
+  <div class="chips" id="meChips"></div></div></div></div>
+
+<div class="mbg" id="pickDlg"><div class="modal" style="width:min(480px,100%)">
+  <div class="mhd"><h3 id="pickT">選擇人員</h3><button class="ib" style="color:#fff;font-size:18px" onclick="pickDone(null)">✕</button></div>
+  <div style="padding:16px 18px"><div class="chips" id="pickChips"></div></div></div></div>
+<div class="mbg" id="help"><div class="modal" style="width:min(640px,100%)">
+  <div class="mhd"><h3>❓ 使用說明</h3><button class="ib" style="color:#fff;font-size:18px" onclick="$('help').classList.remove('on')">✕</button></div>
+  <div style="padding:16px 20px;font-size:13.5px;line-height:1.9">
+    <b>每天第一次打開</b><ol style="padding-left:20px"><li>按右上「📂 連線資料夾」→ 選「允許」（第一次要選共用資料夾）</li><li>確認右上角是你的名字</li></ol>
+    <b>拆解區</b><ol style="padding-left:20px"><li>輸入 WO →「建立／開啟」，可同時開多張，在上方分頁切換</li><li>填基本資料 →「💾 儲存基本資料」</li><li>各大項：勾選項目、「➕ 加照片」或把照片拖進方框、寫備註 →「💾 儲存」</li></ol>
+    <b>組裝區</b><ol style="padding-left:20px"><li>開啟工單看照片與備註（點照片放大，可左右切換）</li><li>在「組裝紀錄」「性能測試」填資料、加照片</li></ol>
+    <b>辦公室</b><ol style="padding-left:20px"><li>開啟工單 →「🖨 照片附件頁」→ 印出或另存 PDF</li></ol>
+    <b>小提醒</b><ol style="padding-left:20px">
+      <li>有修改還沒儲存時，分頁會出現 ● ，該大項外框變橘色；關閉分頁時會提醒</li>
+      <li><b>階段負責人</b>：01–05 拆解清洗、06 組裝、07 測試，第一個儲存的人自動成為負責人，其他人只能看。交接時負責人按「轉交」；授權人員可用自己的 PIN 授權修改</li>
+      <li><b>訪客</b>：「👤」選「👀 訪客」只能瀏覽與列印，不能修改</li>
+      <li><b>完成鎖定</b>：狀態改成「完成」後整張唯讀，授權人員可解鎖</li>
+      <li>照片放錯：照片右上「✕」隱藏；工單建錯：清單右側 🗑（管理者可還原）</li>
+      <li>iPhone 照片讀不到：iPhone「設定 → 照片 → 傳送到 Mac 或 PC」選「自動」</li>
+      <li>看不到別人剛上傳的：按「🔄 重新整理」</li>
+      <li>請用電腦版 Edge 或 Chrome</li></ol>
+  </div></div></div>
+
+<div id="lb"><img id="lbImg"><div class="bar"><button onclick="lbGo(-1)">◀</button><span id="lbCap"></span><button onclick="lbGo(1)">▶</button><button class="gw-only" onclick="lbEdit()">✂ 裁切旋轉</button><button onclick="lbClose()">✕ 關閉</button></div></div>
+<div class="mbg" id="pe"><div class="modal" style="width:min(900px,98vw)">
+  <div class="mhd"><h3>✂ 裁切／旋轉照片</h3><span id="peT" style="font-size:12px;color:#90CAF9;margin-right:10px"></span><button class="ib" style="color:#fff;font-size:18px" onclick="peClose()">✕</button></div>
+  <div class="db"><canvas id="peC"></canvas>
+    <div style="display:flex;gap:10px;align-items:center;justify-content:center;color:#ddd;font-size:13px;margin-top:8px">框的大小 <input type="range" id="peS" min="30" max="100" value="100" style="width:260px"> <span id="peSv">100%</span></div>
+    <div style="color:#bbb;font-size:12px;margin-top:4px">拖曳黃框移動位置，用滑桿調整大小；框外的部分會被裁掉。比例固定 4:3（與照片附件頁一致）。原始照片會保留在資料夾。</div></div>
+  <div class="mft"><button class="btn btn-o" onclick="PE.rotate(-90)">⟲ 左轉</button><button class="btn btn-o" onclick="PE.rotate(90)">⟳ 右轉</button><button class="btn btn-o" onclick="PE.center()">框回置中</button><span style="flex:1"></span><button class="btn btn-o" onclick="peClose()">取消</button><button class="btn btn-p" onclick="PE.apply()">✓ 套用</button></div>
+</div></div>
+<div id="toast"></div>
+<div class="busy" id="busy">處理中…</div>
+<div id="printArea"></div>
+
+<script>
+// ═══ 預設主檔 ═══
+const DEFAULT_MASTER={
+  staff:["Jeffery Kao 高志輝","Johnny Shen 沈銘祥","Wind Liao 廖國宏","Jay Huang 黃冠傑","Leo Lee 李欣翰","Mark Yeh 葉錦寬","Addy Wang 王志豪","陳啟元"],
+  customers:["英特格","復盛","濰旭","嘉基","生達","青啤","耀裕","安利","高雄802","中國醫","林新醫院","和平醫院","長春仁武","新竹友達","台中友達","漢翔","百福林","東元電機","國家奈米","台灣高技","台大兒醫","偉新塑膠","矽品中山","霖城科技","信越","東京威力","英特盛","群創光電","鈺創科技","新光合纖","龍潭友達","淡水馬偕","台北馬偕","寶建","京元電子","凌陽科技","欣銓科技","台積3","奇美柳營","平鎮佳醫","榮創能源","荷昇空調","台北榮總","彰基中華","和喬科技","花蓮慈濟","日煙國際","雲林台大","長達國際","彰基總院","高雄長庚","國際航電","穩懋","旺宏五廠","精上企業","靖業工程","童綜合","生醫所","永富茂","新三興","美商科磊","得力亞","鑫塑","順多","綠能所","榮憶橡膠","景德製藥","遠東新世紀","台橡","聯成化學","合固企業","國家輻射","聯華食品","本堂澄清","中山中興","中山大慶","中山文心","台積15","恆顥","聖保祿","羅門哈斯","麥寮台塑","鉅晶","北醫大","台積6","鈺統食品","和信醫院","聯恒精密","昇威機械","彰濱秀傳","欣岱實業","洽富實業","華夏海灣","奇景光電","亞翔中研院","匹歐匹","墨克先進","豐榮醫院","朋程科技","台灣磐石","輝能科技","大東樹酯","群浤科技"],
+  families:["R5","Mink","COBRA","Seco","Dolphin","Panda","Puma","Samos","Fossa","Huckepack","Booster","Zebra","其他品牌"],
+  statuses:["待拆解","拆解中","待料","組裝中","測試中","完成"],
+  secDefs:[
+    {name:"01 入廠／拆解前檢查",stage:"拆解清洗",fields:[
+      {type:"檢查",label:"拆解前檢查",opts:["系統是否完整","系統是否被拆解過","是否有底座回廠","是否有聯軸器回廠","是否知道下機原因","是否散發異味","是否妥善密封","是否有銘牌","拆解前是否測試","泵體是否完整","外觀是否乾淨","是否有入口濾心","轉子可否轉動","馬達可否轉動","真空油色是否正常","齒輪油色是否正常","是否有漏油","是否有漏水","背壓表是否正常","電磁閥是否正常","浮球開關是否正常","氣鎮閥作動是否正常","氮氣管路是否正常"]}]},
+    {name:"02 拆解檢測－耗材",stage:"拆解清洗",fields:[
+      {type:"複選",label:"異常項目",opts:["齒輪油劣化","真空油乳化","水箱精異常","入口濾網異常","入口濾心阻塞","油霧濾心飽和","機油濾心飽和","耗材安裝不正確","管件洩漏","異物侵入","水泵異常","機械軸封損傷","迷宮環軸封損傷","軸封磨損","葉片磨損","密封件異常"]}]},
+    {name:"03 拆解檢測－機構",stage:"拆解清洗",fields:[
+      {type:"複選",label:"異常項目",opts:["缸體損傷","轉子損傷","軸心損傷","軸承損傷","齒輪損傷","軸套磨損","入口逆止閥異常","排氣逆止閥異常","回油管異常","浮球開關異常","面板磨損","面板軸承磨損"]}]},
+    {name:"04 拆解檢測－傳動／散熱",stage:"拆解清洗",fields:[
+      {type:"複選",label:"異常項目",opts:["馬達異常","馬達軸承座損傷","馬達軸承損傷","聯軸器損傷","聯軸器襯套損傷","馬達風扇損傷","幫浦風扇損傷","熱交換器異常","冷卻水管髒汙"]}]},
+    {name:"05 零件量測／加工需求",stage:"拆解清洗",fields:[
+      {type:"複選",label:"加工需求",opts:["軸心電鍍","軸心噴焊","缸體研磨／搪缸","面板內孔噴焊研磨","轉子動平衡","軸承座加工","馬達繞線","馬達外送加工","油箱清潔"]},
+      {type:"文字",label:"量測紀錄",opts:[]}]},
+    {name:"06 組裝紀錄",stage:"組裝",fields:[
+      {type:"人員",label:"組裝人員",opts:[]},{type:"日期",label:"組裝日期",opts:[]},
+      {type:"文字",label:"間隙規範值",opts:[]},{type:"文字",label:"間隙實測值",opts:[]}]},
+    {name:"07 性能測試",stage:"測試",fields:[
+      {type:"單選",label:"測試結果",opts:["OK","NG"]},{type:"人員",label:"測試人員",opts:[]},{type:"文字",label:"NG 原因",opts:[]}]}
+  ],
+  reqs:{}, adminHash:"", auth:[], updatedAt:0
+};
+const FTYPES=['文字','數字','日期','人員','單選','複選','檢查'];
+const ST_COLOR={"待拆解":"#78909C","拆解中":"#1565C0","待料":"#E65100","組裝中":"#6A1B9A","測試中":"#00838F","完成":"#2E7D32"};
+const SYS='_系統', DELDIR='刪除紀錄', INFO='_基本資料', HIDE='_隱藏';
+const ME_KEY='tdp_me', DEV_KEY='tdp_dev';
+
+// ═══ 工具 ═══
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+function stamp(d=new Date()){return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`}
+function fmtTs(t){if(!t)return '';const d=new Date(t);return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`}
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+const DEV=lsGet(DEV_KEY)||(()=>{const d=Math.random().toString(36).slice(2,6);lsSet(DEV_KEY,d);return d})();
+const uid=()=>`${stamp()}_${DEV}${Math.random().toString(36).slice(2,5)}`;
+const safeName=s=>String(s).replace(/[\\/:*?"<>|]/g,'_').trim();
+function toast(t,ms=2600){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display='none',ms)}
+function busy(on,t){$('busy').textContent=t||'處理中…';$('busy').classList.toggle('on',!!on)}
+function setSt(t,c){$('st').textContent=t;$('st').style.color=c||'#90CAF9'}
+const secCode=s=>s.split(' ')[0];
+const secDir=s=>safeName(s.replace(' ','_'));
+const secNames=()=>M.secDefs.map(d=>d.name);
+const defStage=n=>({'06':'組裝','07':'測試'})[secCode(n)]||'拆解清洗';
+const stageOf=si=>M.secDefs[si].stage||defStage(M.secDefs[si].name);
+const stages=()=>[...new Set(M.secDefs.map(d=>d.stage))];
+const DONE=()=>M.statuses[M.statuses.length-1]||'完成';
+
+// ═══ IndexedDB ═══
+const IDB={db:null,
+  open(){return this.db?Promise.resolve(this.db):new Promise((res,rej)=>{const r=indexedDB.open('tdp',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;res(this.db)};r.onerror=()=>rej(r.error)})},
+  async get(k){const db=await this.open();return new Promise((res,rej)=>{const r=db.transaction('kv').objectStore('kv').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})},
+  async set(k,v){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}};
+
+// ═══ 檔案 ═══
+let ROOT=null, M=JSON.parse(JSON.stringify(DEFAULT_MASTER)), WOS={}, DELS={};
+const OPEN=[]; let ACTIVE='list', KSEQ=0;
+async function dirOf(p,name,create=true){return p.getDirectoryHandle(name,{create})}
+async function writeNew(dir,name,data){const fh=await dir.getFileHandle(name,{create:true});const w=await fh.createWritable();await w.write(data);await w.close();return fh}
+async function readJSON(fh){try{return JSON.parse((await (await fh.getFile()).text()).replace(/^﻿/,''))}catch(e){return null}}
+async function listEntries(dir){const out=[];for await(const [n,h] of dir.entries())out.push([n,h]);return out}
+async function readAllJSON(dir,prefix){const ents=(await listEntries(dir)).filter(([n,h])=>h.kind==='file'&&n.endsWith('.json')&&(!prefix||n.startsWith(prefix))).sort((a,b)=>a[0]<b[0]?-1:1);
+  const out=[];for(const [n,h] of ents){const j=await readJSON(h);if(j)out.push(Object.assign({_file:n},j))}return out}
+
+async function connect(interactive,repick){
+  if(!('showDirectoryPicker' in window)){alert('這個瀏覽器不支援，請改用電腦版 Edge 或 Chrome。');return false}
+  try{
+    let h=repick?null:await IDB.get('root').catch(()=>null);
+    if(h){const p=await h.queryPermission({mode:'readwrite'});
+      if(p!=='granted'){if(!interactive){setSt('請按「📂 連線資料夾」','#FFAB91');return false}
+        if(await h.requestPermission({mode:'readwrite'})!=='granted'){setSt('未授權','#FFAB91');return false}}}
+    else{if(!interactive)return false;h=await window.showDirectoryPicker({mode:'readwrite',id:'tdp'});await IDB.set('root',h)}
+    ROOT=h;$('connBtn').style.display='none';await reloadAll();return true;
+  }catch(e){if(e.name!=='AbortError')alert('連線失敗：'+e.message);return false}
+}
+function need(){if(!ROOT){toast('請先按右上角「📂 連線資料夾」');return false}return true}
+
+// ═══ 主檔 ═══
+function normMaster(m){const o=Object.assign(JSON.parse(JSON.stringify(DEFAULT_MASTER)),m||{});delete o._file;
+  if(!Array.isArray(o.secDefs)||!o.secDefs.length){ // 相容 V1.0：只有 sections 名稱
+    const old=Array.isArray(o.sections)?o.sections:[];o.secDefs=old.length?old.map(n=>DEFAULT_MASTER.secDefs.find(d=>d.name===n)||{name:n,fields:[]}):JSON.parse(JSON.stringify(DEFAULT_MASTER.secDefs))}
+  o.secDefs.forEach(d=>{if(!d.stage)d.stage=defStage(d.name)});if(!Array.isArray(o.auth))o.auth=[];
+  delete o.sections;delete o.pin;return o}
+async function loadMaster(){const sys=await dirOf(ROOT,SYS);const all=await readAllJSON(sys,'master_');if(all.length)M=normMaster(all[all.length-1])}
+async function saveMaster(){const sys=await dirOf(ROOT,SYS);M.updatedAt=Date.now();M.by=me();await writeNew(sys,`master_${uid()}.json`,JSON.stringify(M,null,1))}
+async function loadDels(){const sys=await dirOf(ROOT,SYS);const d=await dirOf(sys,DELDIR);const all=await readAllJSON(d,'del_');const o={};all.forEach(j=>{o[j.wo]=j});DELS=o}
+const isDel=wo=>DELS[wo]&&DELS[wo].act==='del';
+
+// ═══ 工單清單 ═══
+async function loadWOInfo(name,dirH){const info=await dirOf(dirH,INFO).catch(()=>null);let v=[];if(info)v=await readAllJSON(info,'info_');
+  return {wo:name,dir:dirH,info:v.length?v[v.length-1]:{wo:name},ver:v.length}}
+async function reloadAll(){
+  if(!ROOT){connect(true);return}
+  busy(true,'讀取中…');
+  try{
+    await loadMaster();await loadDels();paintMe();
+    const ents=(await listEntries(ROOT)).filter(([n,h])=>h.kind==='directory'&&!n.startsWith('_'));
+    const out={};let i=0;
+    for(const [n,h] of ents){out[n]=await loadWOInfo(n,h);if(++i%20===0)busy(true,`讀取工單 ${i}/${ents.length}…`)}
+    WOS=out;fillStatusFilter();renderList();
+    let skipped=0;
+    for(const w of [...OPEN]){if(!WOS[w.wo]||isDel(w.wo)){closeTab(w.k,true);continue}if(w.dirty.size){skipped++;continue}await loadWO(w);renderWO(w)}
+    renderTabs();
+    setSt(`已連線：${ROOT.name} · ${Object.keys(WOS).filter(k=>!isDel(k)).length} 張工單 · ${fmtTs(Date.now()).slice(11)} 更新`,'#A5D6A7');
+    if(skipped)toast(`有 ${skipped} 張工單尚未儲存，未重新載入`);
+  }catch(e){alert('讀取失敗：'+e.message);setSt('讀取失敗','#FFAB91')}
+  busy(false);
+}
+function fillStatusFilter(){const s=$('qSt'),v=s.value;s.innerHTML='<option value="">全部狀態</option>'+M.statuses.map(x=>`<option${x===v?' selected':''}>${esc(x)}</option>`).join('')}
+function stTag(s){return s?`<span class="tag" style="background:${ST_COLOR[s]||'#546E7A'}">${esc(s)}</span>`:''}
+function renderList(){
+  const q=$('q').value.trim().toLowerCase(),fs=$('qSt').value;
+  let arr=Object.values(WOS).filter(w=>{if(isDel(w.wo))return false;const i=w.info;if(fs&&i.status!==fs)return false;
+    return !q||[w.wo,i.customer,i.model,i.sn,i.family].join(' ').toLowerCase().includes(q)});
+  arr.sort((a,b)=>(b.info.updatedAt||0)-(a.info.updatedAt||0)||(a.wo<b.wo?1:-1));
+  $('listInfo').textContent=`${arr.length} 張`;
+  $('listTbl').innerHTML=`<tr><th>工單號</th><th>狀態</th><th>客戶</th><th>機種</th><th>型號</th><th>序號</th><th>入廠日</th><th>最後更新</th><th></th></tr>`+
+    (arr.length?arr.map(w=>{const i=w.info;return `<tr class="click" onclick="openWO('${esc(w.wo)}')"><td><b>${esc(w.wo)}</b></td><td>${stTag(i.status)}</td><td>${esc(i.customer)}</td><td>${esc(i.family)}</td><td>${esc(i.model)}</td><td>${esc(i.sn)}</td><td>${esc(i.inDate)}</td><td class="hint">${fmtTs(i.updatedAt)} ${esc(i.by||'')}</td>
+      <td><button class="ib del gw-only" title="刪除工單" onclick="event.stopPropagation();delWO('${esc(w.wo)}')">🗑</button></td></tr>`}).join('')
+      :`<tr><td colspan="9" class="empty">${ROOT?'沒有符合的工單':'請先連線共用資料夾'}</td></tr>`);
+}
+async function newWO(){
+  if(!need()||guestBlock())return;const wo=safeName($('newWo').value).toUpperCase().replace(/\s+/g,'');
+  if(!wo){toast('請輸入工單號');return}
+  if(WOS[wo]&&isDel(wo)){if(!confirm(`${wo} 之前被刪除了，要還原嗎？`))return;await markDel(wo,'undel');renderList()}
+  else if(!WOS[wo]){
+    if(!/^WO\d{6,}/.test(wo)&&!confirm(`「${wo}」看起來不像工單號（WO 開頭＋數字），確定建立？`))return;
+    busy(true);try{const d=await dirOf(ROOT,wo);const inf=await dirOf(d,INFO);
+      const info={wo,status:M.statuses[0]||'',inDate:today(),createdAt:Date.now(),updatedAt:Date.now(),by:me()};
+      await writeNew(inf,`info_${uid()}.json`,JSON.stringify(info));WOS[wo]={wo,dir:d,info,ver:1};
+    }catch(e){busy(false);alert('建立失敗：'+e.message);return}busy(false);toast('已建立 '+wo)}
+  $('newWo').value='';renderList();openWO(wo);
+}
+async function markDel(wo,act){const sys=await dirOf(ROOT,SYS);const d=await dirOf(sys,DELDIR);
+  const rec={wo,act,t:Date.now(),by:me()};await writeNew(d,`del_${uid()}.json`,JSON.stringify(rec));DELS[wo]=rec}
+async function delWO(wo){
+  if(!need()||guestBlock())return;const inf=(WOS[wo]||{}).info||{};
+  if((inf.owners&&Object.keys(inf.owners).length||inf.status===DONE())&&!authOK()&&!await askAuth(`${wo} 已經有人填寫資料，刪除需要授權。`))return;
+  if(!confirm(`刪除工單 ${wo}？\n\n工單會從清單移除，檔案仍保留在共用資料夾，管理者可以在「⚙ 主檔與設定 → 已刪除工單」還原。`))return;
+  busy(true);try{await markDel(wo,'del');const w=OPEN.find(x=>x.wo===wo);if(w)closeTab(w.k,true);toast('已刪除 '+wo)}catch(e){alert('刪除失敗：'+e.message)}
+  busy(false);renderList();
+}
+
+// ═══ 多分頁 ═══
+function renderTabs(){
+  $('tabs').innerHTML=`<button class="tab${ACTIVE==='list'?' active':''}" onclick="showTab('list')">📋 工單清單</button>`+
+    OPEN.map(w=>`<button class="tab${ACTIVE===w.k?' active':''}" onclick="showTab(${w.k})" title="${esc(w.info.customer||'')} ${esc(w.info.model||'')}">🔧 ${esc(w.wo)}${w.dirty.size?'<span class="dot" title="有未儲存的修改">●</span>':''}<span class="tx" title="關閉" onclick="event.stopPropagation();closeTab(${w.k})">✕</span></button>`).join('')+
+    `<button class="tab adm" onclick="openAdmin()">⚙ 主檔與設定</button>`;
+}
+function showTab(k){ACTIVE=k;document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===(k==='list'?'p-list':'p-w'+k)));renderTabs();window.scrollTo(0,0)}
+function closeTab(k,force){
+  const i=OPEN.findIndex(w=>w.k===k);if(i<0)return;const w=OPEN[i];
+  if(!force&&w.dirty.size&&!confirm(`${w.wo} 有 ${w.dirty.size} 處修改還沒儲存：\n${[...w.dirty].map(d=>'・'+(d==='info'?'基本資料':M.secDefs[+d.slice(1)]?.name||d)).join('\n')}\n\n確定不儲存直接關閉？`))return;
+  (w.urls||[]).forEach(u=>URL.revokeObjectURL(u));
+  OPEN.splice(i,1);const p=$('p-w'+k);if(p)p.remove();
+  if(ACTIVE===k)showTab(OPEN.length?OPEN[Math.max(0,i-1)].k:'list');else renderTabs();
+}
+window.addEventListener('beforeunload',e=>{if(OPEN.some(w=>w.dirty.size)){e.preventDefault();e.returnValue=''}});
+const W=k=>OPEN.find(w=>w.k===k);
+function markDirty(k,key){const w=W(k);if(!w)return;const had=w.dirty.size;w.dirty.add(key);
+  const el=key==='info'?$(`w${k}_info`):$(`w${k}_sec${key.slice(1)}`);if(el)el.classList.add('dirty');if(!had)renderTabs()}
+function clearDirty(w,key){w.dirty.delete(key);renderTabs()}
+
+async function openWO(wo){
+  if(!need()||!WOS[wo])return;
+  let w=OPEN.find(x=>x.wo===wo);if(w){showTab(w.k);return}
+  w=Object.assign({k:++KSEQ,dirty:new Set(),secs:{},urls:[]},WOS[wo]);OPEN.push(w);
+  const p=document.createElement('div');p.className='panel';p.id='p-w'+w.k;$('main').appendChild(p);
+  p.addEventListener('input',e=>{const d=e.target.closest('[data-dk]');if(d)markDirty(w.k,d.dataset.dk)});
+  busy(true,'讀取工單…');try{await loadWO(w);renderWO(w)}catch(e){alert('讀取工單失敗：'+e.message)}busy(false);
+  showTab(w.k);
+}
+async function readSection(woDir,sec,hidden){
+  const d=await dirOf(woDir,secDir(sec),false).catch(()=>null);if(!d)return {photos:[],notes:[]};
+  const ents=await listEntries(d);
+  const photos=ents.filter(([n,h])=>h.kind==='file'&&/\.(jpe?g|png|webp)$/i.test(n)&&!hidden.has(secDir(sec)+'/'+n)).map(([n,h])=>({name:n,h})).sort((a,b)=>a.name<b.name?-1:1);
+  return {dir:d,photos,notes:await readAllJSON(d,'note_')};
+}
+async function readHidden(woDir){const d=await dirOf(woDir,HIDE,false).catch(()=>null);if(!d)return new Set();
+  const s=new Set();(await readAllJSON(d,'hide_')).forEach(j=>(j.files||[]).forEach(f=>s.add(f)));return s}
+async function loadWO(w){
+  Object.assign(w,await loadWOInfo(w.wo,w.dir));w.urls.forEach(u=>URL.revokeObjectURL(u));w.urls=[];
+  const hidden=await readHidden(w.dir);w.secs={};
+  for(const s of secNames())w.secs[s]=await readSection(w.dir,s,hidden);
+  inferOwners(w);
+}
+function opt(list,v){return `<option value=""></option>`+list.map(x=>`<option${x===v?' selected':''}>${esc(x)}</option>`).join('')+(v&&!list.includes(v)?`<option selected>${esc(v)}</option>`:'')}
+
+// ── 欄位 ──
+function fieldHTML(k,si,fi,f,v){
+  const id=`w${k}_f${si}_${fi}`,on=`markDirty(${k},'s${si}')`;
+  if(f.type==='單選')return `<div class="chips" id="${id}">${f.opts.map(o=>`<button class="chip${v===o?' on':''}" onclick="const was=this.classList.contains('on');this.parentNode.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));if(!was)this.classList.add('on');${on}">${esc(o)}</button>`).join('')}</div>`;
+  if(f.type==='複選'){const a=Array.isArray(v)?v:[];return `<div class="chips" id="${id}">${f.opts.map(o=>`<button class="chip${a.includes(o)?' on':''}" onclick="this.classList.toggle('on');${on}">${esc(o)}</button>`).join('')}</div>`}
+  if(f.type==='檢查'){const m=v&&typeof v==='object'?v:{};return `<div class="chips" id="${id}">${f.opts.map(o=>`<button class="chip${m[o]==='是'?' yes':m[o]==='否'?' no':''}" data-o="${esc(o)}" onclick="if(this.classList.contains('yes')){this.classList.replace('yes','no')}else if(this.classList.contains('no')){this.classList.remove('no')}else{this.classList.add('yes')};${on}">${esc(o)}</button>`).join('')}</div><div class="hint">點一下 ✔是、再點 ✖否、再點清除</div>`}
+  const t={數字:'number',日期:'date'}[f.type]||'text';
+  return `<input class="inp" id="${id}" type="${t}" value="${esc(v||'')}"${f.type==='人員'?` list="staffList"`:''}>`;
+}
+function fieldVal(k,si,fi,f){
+  const el=$(`w${k}_f${si}_${fi}`);if(!el)return undefined;
+  if(f.type==='單選'){const c=el.querySelector('.chip.on');return c?c.textContent:''}
+  if(f.type==='複選')return [...el.querySelectorAll('.chip.on')].map(c=>c.textContent);
+  if(f.type==='檢查'){const o={};el.querySelectorAll('.chip').forEach(c=>{if(c.classList.contains('yes'))o[c.dataset.o]='是';else if(c.classList.contains('no'))o[c.dataset.o]='否'});return o}
+  return el.value.trim();
+}
+function fieldText(f,v){if(v==null||v==='')return '';if(Array.isArray(v))return v.join('、');if(typeof v==='object')return Object.entries(v).map(([a,b])=>`${a}：${b}`).join('、');return String(v)}
+
+function infoHTML(w){
+  const k=w.k,i=w.info,req=M.reqs[i.customer];
+  return `<div class="card" id="w${k}_info" data-dk="info"><div class="card-hd"><h2>🔧 ${esc(w.wo)} ${stTag(i.status)} <span class="unsaved">● 未儲存</span></h2>
+    <button class="btn btn-o btn-s" onclick="printWO(${k})">🖨 照片附件頁</button>
+    <button class="btn btn-o btn-s" onclick="closeTab(${k})">✕ 關閉</button></div>
+    <div class="card-bd">
+    <div class="donebar" id="w${k}_done" style="display:none"></div>
+    <div class="owners" id="w${k}_own"></div>
+    ${req?`<div class="req"><b>⚠ ${esc(i.customer)} 客戶固定要求</b>\n${esc(req.replace(/／/g,'\n'))}</div>`:''}
+    <fieldset class="fsx" id="w${k}_fsi"><div class="wohd">
+      <div><label>客戶</label><input class="inp" id="w${k}_cust" list="custList" value="${esc(i.customer)}"></div>
+      <div><label>機種</label><select class="inp" id="w${k}_fam" onchange="markDirty(${k},'info')">${opt(M.families,i.family)}</select></div>
+      <div><label>型號</label><input class="inp" id="w${k}_model" value="${esc(i.model)}" placeholder="例如 BA0100C"></div>
+      <div><label>序號 S/N</label><input class="inp" id="w${k}_sn" value="${esc(i.sn)}"></div>
+      <div><label>入廠日</label><input class="inp" type="date" id="w${k}_in" value="${esc(i.inDate)}"></div>
+      <div><label>狀態</label><select class="inp" id="w${k}_st" onchange="markDirty(${k},'info')">${opt(M.statuses,i.status)}</select></div>
+      <div style="grid-column:1/-1"><label>工單備註（下機原因、客戶交代事項）</label><textarea class="inp" id="w${k}_note" style="min-height:50px">${esc(i.note)}</textarea></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn btn-p gw-only" onclick="saveInfo(${k})">💾 儲存基本資料</button>
+      <span class="hint">${i.updatedAt?`最後更新 ${fmtTs(i.updatedAt)} ${esc(i.by||'')}（第 ${w.ver} 版）`:''}</span></div></fieldset>
+  </div></div>`;
+}
+function renderWO(w){
+  const k=w.k;const p=$('p-w'+k);if(!p)return;
+  let h=infoHTML(w);
+  M.secDefs.forEach((d,si)=>{
+    const s=d.name,r=w.secs[s]||{photos:[],notes:[]},last=r.notes[r.notes.length-1],fv=(last&&last.fields)||{};
+    h+=`<div class="sec" id="w${k}_sec${si}" data-dk="s${si}"><div class="sec-hd"><b>${esc(s)}</b><span class="cnt" id="w${k}_cnt${si}">📷 ${r.photos.length} 張${last?` · 最後儲存 ${fmtTs(last.t)} ${esc(last.by||'')}`:''}</span><span class="own" id="w${k}_ow${si}"></span><span class="unsaved">● 未儲存</span><span class="sp"></span>
+      <span id="w${k}_lk${si}"></span>
+      <label class="btn btn-b btn-s rw-only" style="display:inline-block">➕ 加照片<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos(${k},${si},this.files);this.value=''"></label></div>
+      <div class="sec-bd"><fieldset class="fsx" id="w${k}_fs${si}">
+      <div class="drop rw-only" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');addPhotos(${k},${si},event.dataTransfer.files)">把照片拖到這裡，或按右上「➕ 加照片」</div>
+      <div class="thumbs" id="w${k}_th${si}">${thumbsHTML(w,si)}</div>
+      ${d.fields.length?`<div class="fields">${d.fields.map((f,fi)=>`<label>${esc(f.label)}</label><div>${fieldHTML(k,si,fi,f,fv[f.label])}</div>`).join('')}</div>`:''}
+      <textarea class="inp" id="w${k}_n${si}" placeholder="備註：這個大項的發現、注意事項（其他區域會看到）">${esc(last?last.text:'')}</textarea>
+      <div class="row" style="margin-top:6px"><button class="btn btn-p btn-s rw-only" onclick="saveNote(${k},${si})">💾 儲存</button></div></fieldset>
+      <div class="row" style="margin-top:6px">${r.notes.length>1?`<button class="btn btn-o btn-s" onclick="const e=$('w${k}_hi${si}');e.style.display=e.style.display==='block'?'none':'block'">🕘 修改紀錄（${r.notes.length}）</button>`:''}</div>
+      <div class="hist" id="w${k}_hi${si}">${r.notes.slice().reverse().map(n=>`<div>${fmtTs(n.t)} ${esc(n.by||'')}：${esc(Object.entries(n.fields||{}).map(([a,b])=>fieldText({},b)?a+'＝'+fieldText({},b):'').filter(Boolean).join('；'))}${n.text?' '+esc(n.text.slice(0,120)):''}</div>`).join('')}</div>
+      </div></div>`;
+  });
+  p.innerHTML=h;
+  w.dirty.forEach(key=>{const el=key==='info'?$(`w${k}_info`):$(`w${k}_sec${key.slice(1)}`);if(el)el.classList.add('dirty')});
+  applyRO(w);loadThumbs(w);
+}
+function thumbsHTML(w,si){const s=M.secDefs[si].name,r=w.secs[s]||{photos:[]};
+  return r.photos.map((p,pi)=>`<div class="th" onclick="lbOpen(${w.k},${si},${pi})"><img data-si="${si}" data-pi="${pi}" alt=""><div class="cap">${esc(capOf(p.name))}</div><button class="ed rw-only" title="裁切／旋轉" onclick="event.stopPropagation();photoEditor(${w.k},${si},${pi})">✂ 裁切旋轉</button><button class="x rw-only" title="隱藏這張" onclick="event.stopPropagation();hidePhoto(${w.k},${si},${pi})">✕</button></div>`).join('')}
+function capOf(n){const m=n.match(/_(\d{8})-(\d{4})\d*_/);const by=(n.match(/_by-([^_.]+)/)||[])[1];return (m?`${m[1].slice(4,6)}/${m[1].slice(6,8)} ${m[2].slice(0,2)}:${m[2].slice(2)}`:n)+(by?' '+by:'')}
+async function urlOf(w,p){if(!p.url){p.url=URL.createObjectURL(await p.h.getFile());w.urls.push(p.url)}return p.url}
+async function loadThumbs(w,onlySi){
+  for(const im of document.querySelectorAll(`#p-w${w.k} img[data-si]`)){if(onlySi!=null&&+im.dataset.si!==onlySi)continue;
+    const p=(w.secs[M.secDefs[+im.dataset.si].name]||{photos:[]}).photos[+im.dataset.pi];if(p)try{im.src=await urlOf(w,p)}catch(e){}}
+}
+function refreshSecPhotos(w,si){const s=M.secDefs[si].name,r=w.secs[s];
+  $(`w${w.k}_th${si}`).innerHTML=thumbsHTML(w,si);const last=r.notes[r.notes.length-1];
+  $(`w${w.k}_cnt${si}`).textContent=`📷 ${r.photos.length} 張${last?` · 最後儲存 ${fmtTs(last.t)} ${last.by||''}`:''}`;loadThumbs(w,si)}
+
+async function saveInfo(k){
+  if(!need()||guestBlock())return;const w=W(k);
+  if(!me()){askMe();toast('請先選擇你的名字');return}
+  if(isDone(w)&&!authOK()&&!await askAuth(`${w.wo} 已完成（唯讀），修改需要授權。`))return;
+  const patch={wo:w.wo,customer:$(`w${k}_cust`).value.trim(),family:$(`w${k}_fam`).value,model:$(`w${k}_model`).value.trim().toUpperCase(),
+    sn:$(`w${k}_sn`).value.trim().toUpperCase(),inDate:$(`w${k}_in`).value,status:$(`w${k}_st`).value,note:$(`w${k}_note`).value.trim()};
+  if(patch.status===DONE()&&w.info.status!==DONE()&&!confirm(`狀態設為「${DONE()}」後，整張工單會變成唯讀，之後要修改需授權人員解鎖。\n確定？`))return;
+  busy(true);try{const info=await writeInfo(w,patch);
+    w.dirty.delete('info');toast(info.customer&&!M.customers.includes(info.customer)?'已儲存（提醒：客戶「'+info.customer+'」不在主檔清單）':'✔ 已儲存基本資料');
+  }catch(e){alert('儲存失敗：'+e.message)}busy(false);
+  const el=$(`w${k}_info`);if(el){el.outerHTML=infoHTML(w)}applyRO(w);renderTabs();renderList();
+}
+async function saveNote(k,si){
+  if(!need())return;const w=W(k),d=M.secDefs[si],s=d.name;
+  busy(true);const okE=await ensureStage(w,si).catch(e=>{alert(e.message);return false});busy(false);if(!okE)return;
+  const fields={};d.fields.forEach((f,fi)=>{fields[f.label]=fieldVal(k,si,fi,f)});
+  const rec={wo:w.wo,sec:s,text:$(`w${k}_n${si}`).value.trim(),fields,t:Date.now(),by:me()+(AUTH&&AUTH!==me()?'（授權：'+AUTH+'）':'')};
+  busy(true);try{const dir=await dirOf(w.dir,secDir(s));await writeNew(dir,`note_${uid()}.json`,JSON.stringify(rec));
+    w.secs[s]=w.secs[s]||{photos:[],notes:[]};w.secs[s].dir=dir;w.secs[s].notes.push(rec);await touch(w);
+    w.dirty.delete('s'+si);$(`w${k}_sec${si}`).classList.remove('dirty');
+    refreshSecPhotos(w,si);toast('✔ 已儲存 '+s);
+  }catch(e){alert('儲存失敗：'+e.message)}busy(false);renderTabs();
+}
+async function touch(w){await writeInfo(w,cur=>(cur.status===M.statuses[0]&&M.statuses[1])?{status:M.statuses[1]}:{})}
+// 以 NAS 上最新的基本資料為底再寫入（不會蓋掉別人剛設定的負責人）
+async function readLatestInfo(w){const r=await loadWOInfo(w.wo,w.dir);w.info=r.info;w.ver=r.ver;if(WOS[w.wo])WOS[w.wo].info=r.info;return r.info}
+async function writeInfo(w,patch){const cur=await readLatestInfo(w);const pt=typeof patch==='function'?patch(cur):patch;
+  const info=Object.assign({},cur,pt,{updatedAt:Date.now(),by:me()+(AUTH&&AUTH!==me()?'（授權：'+AUTH+'）':'')});delete info._file;
+  info.owners=Object.assign({},cur.owners||{},pt.owners||{});Object.keys(info.owners).forEach(x=>{if(!info.owners[x])delete info.owners[x]});
+  const d=await dirOf(w.dir,INFO);await writeNew(d,`info_${uid()}.json`,JSON.stringify(info));w.info=info;w.ver++;if(WOS[w.wo])WOS[w.wo].info=info;renderList();return info}
+
+// ═══ 負責人／完成鎖定／授權 ═══
+let AUTH=null,AUTH_T=0;
+function authOK(){if(AUTH&&Date.now()-AUTH_T>30*60e3){AUTH=null;paintAuth();OPEN.forEach(applyRO)}return !!AUTH}
+function paintAuth(){const b=$('authBtn');b.style.display=AUTH?'':'none';b.textContent=AUTH?`🔑 授權中：${AUTH} ✕`:''}
+function authOff(){AUTH=null;paintAuth();OPEN.forEach(applyRO);toast('已結束授權模式')}
+async function askAuth(why){
+  if(authOK())return true;const nm=me(),a=(M.auth||[]).find(x=>x.name===nm);
+  if(!a&&!M.adminHash){alert(`${why}\n\n「${nm||'未設定'}」不是授權人員，系統也還沒設定管理密碼。\n請管理者到「⚙ 主檔與設定 → 授權人員」設定。`);return false}
+  const p=prompt(`${why}\n\n${a?`授權人員 ${nm}，請輸入你的 PIN（或管理密碼）：`:`「${nm||'未設定'}」不是授權人員。請輸入管理密碼，\n或先在右上「👤」切換成授權人員再操作。`}`);
+  if(p===null)return false;
+  if(a&&await hashPw(nm+'|'+p)===a.hash)AUTH=nm;
+  else if(M.adminHash&&await hashPw(p)===M.adminHash)AUTH='管理者';
+  else{alert('PIN 或密碼不對');return false}
+  AUTH_T=Date.now();paintAuth();OPEN.forEach(applyRO);toast('🔑 已進入授權模式（30 分鐘）');return true}
+const GUEST='訪客', GL_KEY='tdp_guestlock';
+const isGuest=()=>me()===GUEST;
+function guestBlock(){if(isGuest()){toast('👀 訪客只能瀏覽，不能修改。請在右上「👤」切換成你的名字');return true}return false}
+const isDone=w=>w.info.status===DONE();
+const ownerOf=(w,st)=>(w.info.owners||{})[st]||(w.inferred||{})[st]||'';
+// 舊工單（V1.2 前）沒有負責人紀錄：以該階段最早儲存備註的人推定，沒有備註則用最早上傳照片的人
+function inferOwners(w){const o={};
+  const clean=b=>String(b||'').replace(/（授權.*$/,'').trim();
+  const byShort=sh=>M.staff.find(x=>x===sh||x.split(' ').pop()===sh)||sh;
+  stages().forEach(st=>{let best=null;
+    M.secDefs.forEach(d=>{if(d.stage!==st)return;const r=w.secs[d.name];if(!r)return;
+      r.notes.forEach(n=>{if(n.by&&(!best||n.t<best.t))best={t:n.t,by:clean(n.by)}})});
+    if(!best)M.secDefs.forEach(d=>{if(d.stage!==st)return;const r=w.secs[d.name];if(!r)return;
+      r.photos.forEach(p=>{const m=p.name.match(/_(\d{8}-\d{6})_.*_by-([^_.]+)/);if(m&&(!best||m[1]<best.t))best={t:m[1],by:byShort(m[2])}})});
+    if(best)o[st]=best.by});
+  w.inferred=o}
+function canEditStage(w,st){if(isGuest())return false;if(isDone(w))return authOK();const o=ownerOf(w,st);return !o||o===me()||authOK()}
+// 寫入某大項前檢查；沒有負責人時由目前使用者認領
+async function ensureStage(w,si){
+  if(guestBlock())return false;
+  if(!me()){askMe();toast('請先選擇你的名字');return false}
+  await readLatestInfo(w);const st=stageOf(si);
+  if(isDone(w)&&!authOK()){applyRO(w);if(!await askAuth(`${w.wo} 已${DONE()}（唯讀），修改需要授權。`))return false}
+  const o=ownerOf(w,st);
+  if(o&&o!==me()&&!authOK()){applyRO(w);
+    if(!confirm(`「${st}」階段的負責人是 ${o}。\n請 ${o} 轉交給你，或由授權人員授權修改。\n\n現在輸入授權 PIN 嗎？`))return false;
+    if(!await askAuth(`修改 ${o} 負責的「${st}」階段`))return false}
+  if(!(w.info.owners||{})[st]){await writeInfo(w,{owners:{[st]:o||me()}});if(!o)toast(`你已成為「${st}」負責人`)}
+  applyRO(w);return true}
+function applyRO(w){
+  const k=w.k;if(!$(`w${k}_info`))return;const done=isDone(w),au=authOK()&&!isGuest(),g=isGuest();
+  const db=$(`w${k}_done`);db.style.display=done?'':'none';
+  db.innerHTML=done?`✅ 已${esc(DONE())}，整張工單唯讀 <span style="flex:1"></span>${g?'':au?`<button class="btn btn-o btn-s" onclick="unlockWO(${k})">🔓 解鎖（狀態改回「${esc(M.statuses[M.statuses.length-2]||'')}」）</button>`:`<button class="btn btn-o btn-s" onclick="askAuth('解鎖已完成的工單')">🔑 授權解鎖</button>`}`:'';
+  $(`w${k}_fsi`).disabled=g||(done&&!au);
+  $(`w${k}_own`).innerHTML='<b>階段負責人</b>'+stages().map(st=>{const o=ownerOf(w,st);const can=o&&(o===me()||au)&&!(done&&!au);
+    return `<span>${esc(st)}：<b style="color:var(--grey1)">${o?esc(o):'—（第一個儲存的人）'}</b>${can?` <button class="btn btn-o btn-s" style="padding:2px 8px" onclick="transferStage(${k},'${esc(st)}')">轉交</button>`:''}</span>`}).join('');
+  M.secDefs.forEach((d,si)=>{const st=stageOf(si),o=ownerOf(w,st),ro=!canEditStage(w,st);
+    const sec=$(`w${k}_sec${si}`);if(!sec)return;sec.classList.toggle('ro',ro);$(`w${k}_fs${si}`).disabled=ro;
+    $(`w${k}_ow${si}`).textContent=(ro?'🔒 ':'👤 ')+st+(o?'：'+o:'');
+    $(`w${k}_lk${si}`).innerHTML=ro&&!done&&!g?`<button class="btn btn-o btn-s" onclick="askAuth('修改 ${esc(o)} 負責的「${esc(st)}」階段')">🔑 授權修改</button>`:''});
+}
+let PICK=null;
+function pickStaff(title,exclude){return new Promise(res=>{PICK=res;$('pickT').textContent=title;
+  $('pickChips').innerHTML=M.staff.filter(x=>x!==exclude).map(x=>`<button class="chip" style="font-size:15px;padding:8px 16px" onclick="pickDone(this.dataset.v)" data-v="${esc(x)}">${esc(x)}</button>`).join('');$('pickDlg').classList.add('on')})}
+function pickDone(v){$('pickDlg').classList.remove('on');if(PICK){const f=PICK;PICK=null;f(v)}}
+async function transferStage(k,st){
+  if(guestBlock())return;
+  const w=W(k);await readLatestInfo(w);const o=ownerOf(w,st);
+  if(o!==me()&&!authOK()&&!await askAuth(`轉交 ${o} 負責的「${st}」階段`))return;
+  const to=await pickStaff(`「${st}」轉交給誰？（目前：${o}）`,o);if(!to)return;
+  busy(true);try{await writeInfo(w,{owners:{[st]:to}});toast(`「${st}」已轉交給 ${to}`)}catch(e){alert('失敗：'+e.message)}busy(false);applyRO(w);
+}
+async function unlockWO(k){
+  if(guestBlock())return;
+  const w=W(k);if(!authOK()&&!await askAuth('解鎖已完成的工單'))return;
+  const back=M.statuses[M.statuses.length-2]||M.statuses[0];
+  busy(true);try{await writeInfo(w,{status:back});toast(`已解鎖，狀態改回「${back}」`)}catch(e){alert('失敗：'+e.message)}busy(false);
+  const el=$(`w${k}_info`);if(el)el.outerHTML=infoHTML(w);w.dirty.delete('info');applyRO(w);renderTabs();
+}
+
+// ═══ 照片 ═══
+function shrink(file,max=2000,q=0.82){return new Promise((res,rej)=>{
+  if(/heic|heif/i.test(file.type)||/\.hei[cf]$/i.test(file.name)){rej(new Error('HEIC 格式（iPhone）瀏覽器無法讀取'));return}
+  const img=new Image();const u=URL.createObjectURL(file);
+  img.onload=()=>{URL.revokeObjectURL(u);const s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);c.toBlob(b=>b?res(b):rej(new Error('壓縮失敗')),'image/jpeg',q)};
+  img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('讀不到這個照片格式'))};img.src=u})}
+async function addPhotos(k,si,files){
+  if(!need())return;const w=W(k);files=[...files].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|png|hei[cf]|webp)$/i.test(f.name));
+  if(!files.length){toast('沒有可用的照片檔');return}
+  busy(true);const okE=await ensureStage(w,si).catch(e=>{alert(e.message);return false});busy(false);if(!okE)return;
+  const s=M.secDefs[si].name;const d=await dirOf(w.dir,secDir(s));const who=safeName(me().split(' ').pop());
+  let ok=0,bad=[];
+  for(let n=0;n<files.length;n++){busy(true,`上傳照片 ${n+1}/${files.length}…`);
+    try{const b=await shrink(files[n]);const t=new Date(files[n].lastModified||Date.now());
+      await writeNew(d,`${w.wo}_${secCode(s)}_${stamp(t)}_${DEV}${Math.random().toString(36).slice(2,5)}_by-${who}.jpg`,b);ok++}
+    catch(e){bad.push(`${files[n].name}：${e.message}`)}}
+  try{await touch(w)}catch(e){}
+  try{w.secs[s]=await readSection(w.dir,s,await readHidden(w.dir));refreshSecPhotos(w,si)}catch(e){}
+  busy(false);
+  if(bad.length)alert(`成功 ${ok} 張，失敗 ${bad.length} 張：\n`+bad.join('\n')+(bad.some(x=>x.includes('HEIC'))?'\n\niPhone 請到「設定 → 照片 → 傳送到 Mac 或 PC」選「自動」再重新傳到電腦。':''));
+  else toast(`✔ 已上傳 ${ok} 張`);
+}
+async function hidePhoto(k,si,pi){
+  const w=W(k),s=M.secDefs[si].name,r=w.secs[s],p=r.photos[pi];
+  if(!await ensureStage(w,si).catch(e=>{alert(e.message);return false}))return;
+  const hard=ADMIN_OK;if(!confirm(hard?'管理者模式：永久刪除這張照片？':'隱藏這張照片？\n（檔案仍保留，畫面上不再顯示）'))return;
+  busy(true);try{
+    if(hard){try{await r.dir.removeEntry(p.name)}catch(e){await hideRec(w,s,p)}}else await hideRec(w,s,p);
+    r.photos.splice(pi,1);refreshSecPhotos(w,si);toast(hard?'已刪除':'已隱藏')}catch(e){alert('失敗：'+e.message)}
+  busy(false);
+}
+async function hideRec(w,s,p){const d=await dirOf(w.dir,HIDE);await writeNew(d,`hide_${uid()}.json`,JSON.stringify({files:[secDir(s)+'/'+p.name],t:Date.now(),by:me()}))}
+let LBW=null,LBL=[],LBi=0;
+function lbOpen(k,si,pi){const w=W(k);LBW=w;LBL=[];M.secDefs.forEach((d,i)=>(w.secs[d.name]||{photos:[]}).photos.forEach((p,j)=>{if(i===si&&j===pi)LBi=LBL.length;LBL.push({sec:d.name,p})}));lbShow();$('lb').classList.add('on')}
+async function lbShow(){const it=LBL[LBi];if(!it)return;$('lbImg').src=await urlOf(LBW,it.p);$('lbCap').textContent=`${it.sec} · ${capOf(it.p.name)} · ${LBi+1}/${LBL.length}`}
+function lbGo(n){LBi=(LBi+n+LBL.length)%LBL.length;lbShow()}
+function lbClose(){$('lb').classList.remove('on')}
+document.addEventListener('keydown',e=>{if(!$('lb').classList.contains('on'))return;if(e.key==='ArrowLeft')lbGo(-1);if(e.key==='ArrowRight')lbGo(1);if(e.key==='Escape')lbClose()});
+$('lb').addEventListener('click',e=>{if(e.target.id==='lb')lbClose()});
+
+
+// ═══ 照片裁切／旋轉（同 Field Service）═══
+const PH_RATIO=4/3; let PE={};
+function drawRot(ctx,img,rot,w,h){ctx.save();ctx.translate(w/2,h/2);ctx.rotate(rot*Math.PI/180);
+  const iw=img.naturalWidth,ih=img.naturalHeight,sc=(rot%180?w/ih:w/iw);ctx.drawImage(img,-iw*sc/2,-ih*sc/2,iw*sc,ih*sc);ctx.restore()}
+function lbEdit(){const it=LBL[LBi];if(!it||!LBW)return;const si=M.secDefs.findIndex(d=>d.name===it.sec);const pi=(LBW.secs[it.sec]||{photos:[]}).photos.indexOf(it.p);lbClose();if(si>=0&&pi>=0)photoEditor(LBW.k,si,pi)}
+function peClose(){$('pe').classList.remove('on')}
+async function photoEditor(k,si,pi){
+  if(!need())return;const w=W(k),s=M.secDefs[si].name,r=w.secs[s],p=r&&r.photos[pi];if(!p)return;
+  if(!await ensureStage(w,si).catch(e=>{alert(e.message);return false}))return;
+  const img=new Image();img.src=await urlOf(w,p);try{await img.decode()}catch(e){toast('照片無法開啟');return}
+  let rot=0,crop=null,drag=null,size=100;
+  const dims=()=>{const iw=img.naturalWidth,ih=img.naturalHeight;return rot%180?[ih,iw]:[iw,ih]};
+  const fit=(cx,cy)=>{const [rw,rh]=dims();let wpx=rw,hpx=rw/PH_RATIO;if(hpx>rh){hpx=rh;wpx=rh*PH_RATIO}wpx*=size/100;hpx*=size/100;
+    const fw=wpx/rw,fh=hpx/rh;cx=cx??(crop?crop.x+crop.w/2:0.5);cy=cy??(crop?crop.y+crop.h/2:0.5);
+    crop={w:fw,h:fh,x:Math.min(1-fw,Math.max(0,cx-fw/2)),y:Math.min(1-fh,Math.max(0,cy-fh/2))}};
+  const cv=$('peC'),ctx=cv.getContext('2d'),sl=$('peS');sl.value=100;$('peSv').textContent='100%';
+  $('peT').textContent=`${s} · ${capOf(p.name)}`;
+  const draw=()=>{const [rw,rh]=dims();const sc=Math.min(860/rw,520/rh,1);cv.width=Math.round(rw*sc);cv.height=Math.round(rh*sc);
+    drawRot(ctx,img,rot,cv.width,cv.height);
+    const x=crop.x*cv.width,y=crop.y*cv.height,fw=crop.w*cv.width,fh=crop.h*cv.height;
+    ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,cv.width,y);ctx.fillRect(0,y+fh,cv.width,cv.height-y-fh);ctx.fillRect(0,y,x,fh);ctx.fillRect(x+fw,y,cv.width-x-fw,fh);
+    ctx.strokeStyle='#ffd400';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,fw-2,fh-2);
+    ctx.strokeStyle='rgba(255,212,0,.45)';ctx.lineWidth=1;ctx.beginPath();for(let n=1;n<3;n++){ctx.moveTo(x+fw*n/3,y);ctx.lineTo(x+fw*n/3,y+fh);ctx.moveTo(x,y+fh*n/3);ctx.lineTo(x+fw,y+fh*n/3)}ctx.stroke()};
+  const pt=e=>{const b=cv.getBoundingClientRect();return [(e.clientX-b.left)/b.width,(e.clientY-b.top)/b.height]};
+  cv.onpointerdown=e=>{const [x,y]=pt(e);drag={x,y,cx:crop.x,cy:crop.y};cv.setPointerCapture(e.pointerId)};
+  cv.onpointermove=e=>{if(!drag)return;const [x,y]=pt(e);crop.x=Math.min(1-crop.w,Math.max(0,drag.cx+x-drag.x));crop.y=Math.min(1-crop.h,Math.max(0,drag.cy+y-drag.y));draw()};
+  cv.onpointerup=()=>{drag=null};
+  sl.oninput=()=>{size=+sl.value;$('peSv').textContent=size+'%';fit();draw()};
+  PE={rotate(d){rot=(rot+d+360)%360;crop=null;fit(0.5,0.5);draw()},center(){crop=null;fit(0.5,0.5);draw()},
+    async apply(){
+      const [rw,rh]=dims();const full=document.createElement('canvas');full.width=rw;full.height=rh;drawRot(full.getContext('2d'),img,rot,rw,rh);
+      const sx=Math.round(crop.x*rw),sy=Math.round(crop.y*rh),sw=Math.max(4,Math.round(crop.w*rw)),sh=Math.max(3,Math.round(sw/PH_RATIO));
+      const kk=Math.min(1,2000/sw);const out=document.createElement('canvas');out.width=Math.round(sw*kk);out.height=Math.round(out.width/PH_RATIO);
+      out.getContext('2d').drawImage(full,sx,sy,sw,Math.min(sh,rh-sy),0,0,out.width,out.height);
+      const blob=await new Promise(res=>out.toBlob(res,'image/jpeg',0.85));
+      busy(true,'儲存照片中…');
+      try{const base=p.name.replace(/(_e\d+)?\.jpe?g$/i,'');const dir=await dirOf(w.dir,secDir(s));
+        await writeNew(dir,`${base}_e${Date.now().toString(36)}.jpg`,blob);
+        await hideRec(w,s,p);await touch(w);
+        w.secs[s]=await readSection(w.dir,s,await readHidden(w.dir));refreshSecPhotos(w,si);peClose();toast('✔ 照片已更新（原始照片仍保留在資料夾）')}
+      catch(er){alert('儲存失敗：'+er.message)}
+      busy(false)}};
+  fit();draw();$('pe').classList.add('on');
+}
+
+// ═══ 照片附件頁 ═══
+async function printWO(k){
+  const w=W(k),i=w.info;busy(true,'準備列印…');
+  let h=`<div class="pr-hd"><h1>Busch Taiwan Service · 拆解照片附件 Photo Attachment</h1><table><tr>
+    <td><b>W/O</b> ${esc(w.wo)}</td><td><b>Customer</b> ${esc(i.customer)}</td><td><b>Type</b> ${esc(i.family)}</td></tr><tr>
+    <td><b>Model</b> ${esc(i.model)}</td><td><b>S/N</b> ${esc(i.sn)}</td><td><b>入廠日</b> ${esc(i.inDate)}</td></tr></table>
+    ${i.note?`<div class="pr-note" style="margin-top:4px"><b>備註：</b>${esc(i.note)}</div>`:''}</div>`;
+  for(const d of M.secDefs){const r=w.secs[d.name]||{photos:[],notes:[]},last=r.notes[r.notes.length-1];
+    const f=last&&last.fields?d.fields.map(x=>{const t=fieldText(x,last.fields[x.label]);return t?`${x.label}：${t}`:''}).filter(Boolean).join('\n'):'';
+    if(!r.photos.length&&!f&&!(last&&last.text))continue;
+    const imgs=[];for(const p of r.photos){try{imgs.push(`<figure><img src="${await urlOf(w,p)}"><figcaption>${esc(capOf(p.name))}</figcaption></figure>`)}catch(e){}}
+    h+=`<div class="pr-sec"><h2>${esc(d.name)}</h2>${f?`<div class="pr-note">${esc(f)}</div>`:''}${last&&last.text?`<div class="pr-note">${esc(last.text)}</div>`:''}<div class="pr-ph">${imgs.join('')}</div></div>`}
+  $('printArea').innerHTML=h;busy(false);
+  await Promise.all([...$('printArea').querySelectorAll('img')].map(im=>im.complete?1:new Promise(r=>{im.onload=im.onerror=r})));
+  window.print();
+}
+
+// ═══ 人員 ═══
+const me=()=>lsGet(ME_KEY)||'';
+function paintMe(){const g=isGuest();document.body.classList.toggle('guest',g);$('meBtn').classList.toggle('gst',g);$('meBtn').textContent=g?'👀 訪客（僅瀏覽）':'👤 '+(me()||'未設定');
+  $('dl')||document.body.insertAdjacentHTML('beforeend','<div id="dl"></div>');
+  $('dl').innerHTML=`<datalist id="staffList">${M.staff.map(s=>`<option value="${esc(s)}">`).join('')}</datalist><datalist id="custList">${M.customers.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`}
+async function askMe(){
+  if(lsGet(GL_KEY)==='1'){if(!M.adminHash){toast('這台電腦固定為訪客');return}const p=prompt('這台電腦固定為訪客。要切換成工作人員請輸入管理密碼：');if(p===null)return;if(await hashPw(p)!==M.adminHash){alert('密碼不對');return}}
+  $('meChips').innerHTML=`<button class="chip" style="font-size:15px;padding:8px 16px;border-color:#FFB300" onclick="setMe('${GUEST}')">👀 訪客（僅瀏覽）</button>`+M.staff.map(s=>`<button class="chip" style="font-size:15px;padding:8px 16px" onclick="setMe(this.dataset.v)" data-v="${esc(s)}">${esc(s)}</button>`).join('');$('meDlg').classList.add('on')}
+function setMe(n){lsSet(ME_KEY,n);$('meDlg').classList.remove('on');if(AUTH&&(n===GUEST||(AUTH!==n&&AUTH!=='管理者'))){AUTH=null;paintAuth()}paintMe();OPEN.forEach(applyRO);toast(n===GUEST?'👀 訪客模式：只能瀏覽':'你好，'+n)}
+
+// ═══ 大項欄位文字格式 ═══
+function secDefText(defs){return defs.map(d=>[d.name+(d.stage?' ＠'+d.stage:''),...d.fields.map(f=>`  ${f.type}：${f.label}${f.opts&&f.opts.length?'＝'+f.opts.join(','):''}`)].join('\n')).join('\n\n')}
+function parseSecDef(t){
+  const defs=[],errs=[];let cur=null;
+  t.split('\n').forEach((raw,n)=>{const line=raw.replace(/\t/g,'  ');if(!line.trim())return;
+    if(!/^\s/.test(line)){const parts=line.trim().split(/[@＠]/);const name=parts[0].trim(),stage=(parts[1]||'').trim()||defStage(name);if(!/^\S+\s+\S/.test(name)){errs.push(`第 ${n+1} 行：大項要寫「代碼 名稱」`);return}
+      if(defs.some(d=>secCode(d.name)===secCode(name)))errs.push(`第 ${n+1} 行：代碼「${secCode(name)}」重複`);
+      cur={name,stage,fields:[]};defs.push(cur);return}
+    if(!cur){errs.push(`第 ${n+1} 行：欄位前面要先有大項`);return}
+    const m=line.trim().match(/^([^：:]+)[：:]\s*([^＝=]+?)\s*(?:[＝=]\s*(.*))?$/);
+    if(!m){errs.push(`第 ${n+1} 行：格式要「類型：欄位名稱」`);return}
+    const type=m[1].trim(),label=m[2].trim(),opts=(m[3]||'').split(/[,，、]/).map(s=>s.trim()).filter(Boolean);
+    if(!FTYPES.includes(type)){errs.push(`第 ${n+1} 行：類型「${type}」不認得（可用：${FTYPES.join('、')}）`);return}
+    if(['單選','複選','檢查'].includes(type)&&!opts.length){errs.push(`第 ${n+1} 行：「${type}」要列出選項，例如 ${type}：${label}＝A,B,C`);return}
+    if(cur.fields.some(f=>f.label===label)){errs.push(`第 ${n+1} 行：欄位「${label}」在同一大項重複`);return}
+    cur.fields.push({type,label,opts});});
+  if(!defs.length)errs.push('至少要有一個大項');
+  return {defs,errs};
+}
+function checkSecDef(){const r=parseSecDef($('mSecDef').value);$('secChk').innerHTML=r.errs.length?`<span style="color:var(--red2)">${r.errs.map(esc).join('<br>')}</span>`:`<span style="color:var(--green2)">✔ 格式正確：${r.defs.length} 個大項、${r.defs.reduce((a,d)=>a+d.fields.length,0)} 個欄位</span>`;return r}
+
+// ═══ 主檔畫面 ═══
+let ADMIN_OK=false;
+async function hashPw(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return 'h1:'+[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function askAdmin(){if(!M.adminHash||ADMIN_OK)return true;const p=prompt('管理密碼');if(p===null)return false;
+  if(await hashPw(p)!==M.adminHash){alert('密碼不對');return false}ADMIN_OK=true;return true}
+async function openAdmin(){
+  if(!need()||!await askAdmin())return;ADMIN_OK=true;
+  $('mStaff').value=M.staff.join('\n');$('mCust').value=M.customers.join('\n');$('mFam').value=M.families.join('\n');$('mStat').value=M.statuses.join('\n');
+  $('mSecDef').value=secDefText(M.secDefs);$('secChk').textContent='';
+  $('mReq').value=Object.entries(M.reqs).map(([a,b])=>`${a}｜${b}`).join('\n');
+  $('dirName').textContent=ROOT?ROOT.name:'未連線';$('pwSt').textContent=M.adminHash?'✔ 已設定':'（未設定，任何人都能進主檔）';
+  $('sysInfo').textContent=`主檔最後更新：${fmtTs(M.updatedAt)||'（預設值）'} ${M.by||''} · 這台裝置代碼 ${DEV}`;
+  $('glSt').textContent=lsGet(GL_KEY)==='1'?'✔ 已固定':'（未固定）';
+  AUTHS=JSON.parse(JSON.stringify(M.auth||[]));renderAuthList();renderDelList();$('adm').classList.add('on');
+}
+function closeAdmin(){$('adm').classList.remove('on')}
+function mTab(t){document.querySelectorAll('.mtab').forEach(b=>b.classList.toggle('on',b.dataset.m===t));document.querySelectorAll('.mp').forEach(p=>p.classList.toggle('on',p.id==='m-'+t))}
+const lines=id=>$(id).value.split('\n').map(s=>s.trim()).filter(Boolean);
+async function saveAdmin(){
+  const r=checkSecDef();if(r.errs.length){mTab('sec');alert('「大項與欄位」格式有誤，請修正：\n'+r.errs.join('\n'));return}
+  const oldCodes=M.secDefs.map(d=>secCode(d.name)),newCodes=r.defs.map(d=>secCode(d.name));
+  const gone=M.secDefs.filter(d=>!newCodes.includes(secCode(d.name))).map(d=>d.name);
+  const renamed=r.defs.filter(d=>{const o=M.secDefs.find(x=>secCode(x.name)===secCode(d.name));return o&&o.name!==d.name}).map(d=>d.name);
+  if((gone.length||renamed.length)&&!confirm((gone.length?'以下大項被刪除，舊照片會看不到（檔案仍在）：\n'+gone.join('\n')+'\n\n':'')+(renamed.length?'以下大項名稱有改，資料夾名稱跟著改，舊照片會看不到：\n'+renamed.join('\n')+'\n\n':'')+'確定儲存？'))return;
+  if(OPEN.some(w=>w.dirty.size)&&!confirm('有工單還沒儲存，儲存主檔後會重新整理畫面，未儲存的內容會遺失。繼續？'))return;
+  const reqs={};lines('mReq').forEach(l=>{const i=l.search(/[｜|]/);if(i>0)reqs[l.slice(0,i).trim()]=l.slice(i+1).trim()});
+  M.auth=AUTHS;
+  Object.assign(M,{staff:lines('mStaff'),customers:lines('mCust'),families:lines('mFam'),statuses:lines('mStat'),secDefs:r.defs,reqs});
+  busy(true);try{await saveMaster();toast('✔ 主檔已儲存');closeAdmin();OPEN.forEach(w=>w.dirty.clear());busy(false);await reloadAll()}catch(e){busy(false);alert('儲存失敗：'+e.message)}
+}
+async function setPw(){const v=$('mPw').value;if(v.length<4){alert('密碼至少 4 碼');return}M.adminHash=await hashPw(v);$('mPw').value='';
+  try{await saveMaster();$('pwSt').textContent='✔ 已設定';toast('✔ 管理密碼已設定')}catch(e){alert('失敗：'+e.message)}}
+async function clearPw(){if(!M.adminHash||!confirm('移除管理密碼？'))return;M.adminHash='';await saveMaster();$('pwSt').textContent='（未設定）'}
+function setGuestLock(on){if(on){lsSet(GL_KEY,'1');lsSet(ME_KEY,GUEST);paintMe();OPEN.forEach(applyRO);if(!M.adminHash)alert('提醒：還沒設定管理密碼，固定訪客後任何人都無法切換。請先設定管理密碼。')}
+  else{try{localStorage.removeItem(GL_KEY)}catch(e){}}$('glSt').textContent=lsGet(GL_KEY)==='1'?'✔ 已固定':'（未固定）';toast(on?'這台電腦已固定為訪客':'已解除訪客固定')}
+let AUTHS=[];
+function renderAuthList(){
+  $('authAdd').innerHTML=M.staff.map(x=>`<option>${esc(x)}</option>`).join('');
+  $('authList').innerHTML=AUTHS.length?`<table class="dt" style="max-width:520px"><tr><th>授權人員</th><th>PIN</th><th></th></tr>${AUTHS.map((a,i)=>`<tr><td><b>${esc(a.name)}</b></td><td>${a.hash?'✔ 已設定':'未設定'}</td><td><button class="btn btn-o btn-s" onclick="AUTHS.splice(${i},1);renderAuthList()">移除</button></td></tr>`).join('')}</table>`:'<div class="empty" style="padding:10px">尚未設定授權人員（目前只能用管理密碼授權）</div>'}
+async function addAuth(){const n=$('authAdd').value,pin=$('authPin').value;if(!n)return;if(pin.length<4){alert('PIN 至少 4 碼');return}
+  const h=await hashPw(n+'|'+pin);const a=AUTHS.find(x=>x.name===n);if(a)a.hash=h;else AUTHS.push({name:n,hash:h});$('authPin').value='';renderAuthList();toast(`${n} 的 PIN 已設定（記得儲存主檔）`)}
+function renderDelList(){
+  const arr=Object.values(DELS).filter(d=>d.act==='del'&&WOS[d.wo]);
+  $('delList').innerHTML=`<div class="hint" style="margin-bottom:8px">清單上按 🗑 刪除的工單會在這裡。「還原」放回清單；「永久刪除」會刪掉整個工單資料夾（含照片），無法復原。</div>`+
+    (arr.length?`<table class="dt"><tr><th>工單號</th><th>客戶</th><th>型號</th><th>刪除時間</th><th>刪除人員</th><th></th></tr>${arr.map(d=>{const i=WOS[d.wo].info;return `<tr><td><b>${esc(d.wo)}</b></td><td>${esc(i.customer)}</td><td>${esc(i.model)}</td><td>${fmtTs(d.t)}</td><td>${esc(d.by)}</td>
+      <td><button class="btn btn-o btn-s" onclick="undelWO('${esc(d.wo)}')">↺ 還原</button> <button class="btn btn-r btn-s" onclick="purgeWO('${esc(d.wo)}')">永久刪除</button></td></tr>`}).join('')}</table>`:'<div class="empty">沒有已刪除的工單</div>');
+}
+async function undelWO(wo){busy(true);try{await markDel(wo,'undel');toast('已還原 '+wo)}catch(e){alert('失敗：'+e.message)}busy(false);renderDelList();renderList()}
+async function purgeWO(wo){
+  if(prompt(`永久刪除 ${wo} 的所有照片與資料，無法復原。\n請輸入工單號確認：`)!==wo)return;
+  busy(true);try{await ROOT.removeEntry(wo,{recursive:true});delete WOS[wo];toast('已永久刪除 '+wo)}catch(e){alert('永久刪除失敗：'+e.message+'\n（共用資料夾帳號可能沒有刪除權限）')}
+  busy(false);renderDelList();renderList();
+}
+function exportCSV(){
+  const cols=['工單號','狀態','客戶','機種','型號','序號','入廠日','備註','最後更新','更新人員'],q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const rows=Object.values(WOS).filter(w=>!isDel(w.wo)).map(w=>{const i=w.info;return [w.wo,i.status,i.customer,i.family,i.model,i.sn,i.inDate,i.note,fmtTs(i.updatedAt),i.by].map(q).join(',')});
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+cols.join(',')+'\n'+rows.join('\n')],{type:'text/csv'}));a.download=`拆解工單清單_${today()}.csv`;a.click();
+}
+function showHelp(){$('help').classList.add('on')}
+
+// ═══ 啟動 ═══
+paintMe();fillStatusFilter();renderTabs();renderList();
+(async()=>{const ok=await connect(false);if(!ok&&!(await IDB.get('root').catch(()=>null)))showHelp();if(!me())setTimeout(()=>{if(ROOT)askMe()},400)})();
+</script>
+</body>
+</html>
