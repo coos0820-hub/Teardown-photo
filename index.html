@@ -81,7 +81,14 @@ table.dt tr.click{cursor:pointer}table.dt tr.click:hover td{background:#f0f6ff}
 .th .cap{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.65));color:#fff;font-size:10.5px;padding:10px 6px 3px}
 .th .x{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:none}
 .th .ed{position:absolute;top:3px;right:29px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:11px;height:22px;padding:0 7px;font-size:11px;cursor:pointer;display:none}
-.th:hover .x,.th:hover .ed{display:block}
+.th:hover .x,.th:hover .ed,.th:hover .cp{display:block}
+.th .cp{position:absolute;top:3px;left:3px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:11px;height:22px;padding:0 7px;font-size:11px;cursor:pointer;display:none}
+.thw{display:flex;flex-direction:column;gap:3px}
+.tcap{font-size:11.5px;color:var(--grey1);line-height:1.4;white-space:pre-wrap;word-break:break-all}
+.logs{margin-bottom:10px;border-left:3px solid var(--blue2);padding-left:10px}
+.logs .le{padding:6px 0;border-bottom:1px dashed var(--border);font-size:12.5px;white-space:pre-wrap}
+.logs .lm{font-size:11px;color:var(--grey2);margin-bottom:2px}
+.logs .lt{display:inline-block;background:#E3F2FD;color:var(--blue);border-radius:4px;padding:0 6px;margin-right:4px;font-size:11px;font-weight:700}
 #pe .db{text-align:center;background:#2b2b2b;padding:12px}
 #pe canvas{max-width:100%;cursor:move;touch-action:none}
 .drop{border:2px dashed var(--grey3);border-radius:8px;padding:10px;text-align:center;color:var(--grey2);font-size:12px;margin-bottom:10px}
@@ -145,7 +152,7 @@ pre.help{background:#F7F9FC;border:1px solid var(--border);border-radius:7px;pad
 </head>
 <body>
 <div class="ph">
-  <div><h1>拆解照片系統<span class="h1en">Teardown Photo Records</span></h1><div class="sub">台灣普熙 技術服務部 · 拆解區 ／ 組裝區 ／ 辦公室 · V1.3</div></div>
+  <div><h1>拆解照片系統<span class="h1en">Teardown Photo Records</span></h1><div class="sub">台灣普熙 技術服務部 · 拆解區 ／ 組裝區 ／ 辦公室 · V1.4</div></div>
   <div class="right">
     <span class="sync-st" id="st">尚未連線共用資料夾</span>
     <button class="authbtn" id="authBtn" style="display:none" onclick="authOff()" title="結束授權模式"></button>
@@ -196,6 +203,7 @@ pre.help{background:#F7F9FC;border:1px solid var(--border);border-radius:7px;pad
   </div>
   <div class="mp" id="m-sec">
 <pre class="help"><b>寫法</b>：大項一行（頂格寫「代碼 名稱 ＠階段」，階段用來分負責人，例如 ＠拆解清洗、＠組裝、＠測試），底下的欄位每行<b>前面空兩格</b>，格式「類型：欄位名稱」或「類型：欄位名稱＝選項1,選項2,…」
+<b>階段</b>寫「＠共用」＝不分負責人，大家都可以新增；大項名稱後加「＃記事」＝備註改成一則一則累加（不會蓋掉別人的）。
 <b>類型</b>：文字、數字、日期、人員（從人員清單選）、單選、複選、檢查（每個項目點選 ✔是／✖否）
 每個大項都自動有「照片」和「備註」，不用寫。<b>大項代碼是資料夾名稱，已使用的代碼請勿修改</b>；欄位改名後，舊資料要改回原名才看得到。</pre>
     <textarea class="ta code" id="mSecDef" spellcheck="false"></textarea>
@@ -290,7 +298,9 @@ const DEFAULT_MASTER={
       {type:"人員",label:"組裝人員",opts:[]},{type:"日期",label:"組裝日期",opts:[]},
       {type:"文字",label:"間隙規範值",opts:[]},{type:"文字",label:"間隙實測值",opts:[]}]},
     {name:"07 性能測試",stage:"測試",fields:[
-      {type:"單選",label:"測試結果",opts:["OK","NG"]},{type:"人員",label:"測試人員",opts:[]},{type:"文字",label:"NG 原因",opts:[]}]}
+      {type:"單選",label:"測試結果",opts:["OK","NG"]},{type:"人員",label:"測試人員",opts:[]},{type:"文字",label:"NG 原因",opts:[]}]},
+    {name:"08 其他",stage:"共用",log:true,fields:[
+      {type:"複選",label:"類型",opts:["異常發現","需客戶確認","需報價／追加零件","安全注意","其他"]}]}
   ],
   reqs:{}, adminHash:"", auth:[], updatedAt:0
 };
@@ -319,7 +329,8 @@ const secDir=s=>safeName(s.replace(' ','_'));
 const secNames=()=>M.secDefs.map(d=>d.name);
 const defStage=n=>({'06':'組裝','07':'測試'})[secCode(n)]||'拆解清洗';
 const stageOf=si=>M.secDefs[si].stage||defStage(M.secDefs[si].name);
-const stages=()=>[...new Set(M.secDefs.map(d=>d.stage))];
+const SHARED='共用';
+const stages=()=>[...new Set(M.secDefs.map(d=>d.stage))].filter(x=>x!==SHARED);
 const DONE=()=>M.statuses[M.statuses.length-1]||'完成';
 
 // ═══ IndexedDB ═══
@@ -355,10 +366,11 @@ function need(){if(!ROOT){toast('請先按右上角「📂 連線資料夾」');
 function normMaster(m){const o=Object.assign(JSON.parse(JSON.stringify(DEFAULT_MASTER)),m||{});delete o._file;
   if(!Array.isArray(o.secDefs)||!o.secDefs.length){ // 相容 V1.0：只有 sections 名稱
     const old=Array.isArray(o.sections)?o.sections:[];o.secDefs=old.length?old.map(n=>DEFAULT_MASTER.secDefs.find(d=>d.name===n)||{name:n,fields:[]}):JSON.parse(JSON.stringify(DEFAULT_MASTER.secDefs))}
+  if(!o.added08){if(!o.secDefs.some(d=>secCode(d.name)==='08'))o.secDefs.push(JSON.parse(JSON.stringify(DEFAULT_MASTER.secDefs.find(d=>secCode(d.name)==='08'))));o.added08=true}
   o.secDefs.forEach(d=>{if(!d.stage)d.stage=defStage(d.name)});if(!Array.isArray(o.auth))o.auth=[];
   delete o.sections;delete o.pin;return o}
 async function loadMaster(){const sys=await dirOf(ROOT,SYS);const all=await readAllJSON(sys,'master_');if(all.length)M=normMaster(all[all.length-1])}
-async function saveMaster(){const sys=await dirOf(ROOT,SYS);M.updatedAt=Date.now();M.by=me();await writeNew(sys,`master_${uid()}.json`,JSON.stringify(M,null,1))}
+async function saveMaster(){const sys=await dirOf(ROOT,SYS);M.updatedAt=Date.now();M.added08=true;M.by=me();await writeNew(sys,`master_${uid()}.json`,JSON.stringify(M,null,1))}
 async function loadDels(){const sys=await dirOf(ROOT,SYS);const d=await dirOf(sys,DELDIR);const all=await readAllJSON(d,'del_');const o={};all.forEach(j=>{o[j.wo]=j});DELS=o}
 const isDel=wo=>DELS[wo]&&DELS[wo].act==='del';
 
@@ -442,7 +454,7 @@ async function openWO(wo){
   let w=OPEN.find(x=>x.wo===wo);if(w){showTab(w.k);return}
   w=Object.assign({k:++KSEQ,dirty:new Set(),secs:{},urls:[]},WOS[wo]);OPEN.push(w);
   const p=document.createElement('div');p.className='panel';p.id='p-w'+w.k;$('main').appendChild(p);
-  p.addEventListener('input',e=>{const d=e.target.closest('[data-dk]');if(d)markDirty(w.k,d.dataset.dk)});
+  p.addEventListener('input',e=>{if(e.target.type==='file')return;const d=e.target.closest('[data-dk]');if(d)markDirty(w.k,d.dataset.dk)});
   busy(true,'讀取工單…');try{await loadWO(w);renderWO(w)}catch(e){alert('讀取工單失敗：'+e.message)}busy(false);
   showTab(w.k);
 }
@@ -450,6 +462,8 @@ async function readSection(woDir,sec,hidden){
   const d=await dirOf(woDir,secDir(sec),false).catch(()=>null);if(!d)return {photos:[],notes:[]};
   const ents=await listEntries(d);
   const photos=ents.filter(([n,h])=>h.kind==='file'&&/\.(jpe?g|png|webp)$/i.test(n)&&!hidden.has(secDir(sec)+'/'+n)).map(([n,h])=>({name:n,h})).sort((a,b)=>a.name<b.name?-1:1);
+  const caps={};(await readAllJSON(d,'cap_')).forEach(c=>{caps[c.file]=c});
+  photos.forEach(p=>{const c=caps[p.name];if(c){p.cap=c.text||'';p.capBy=c.by}});
   return {dir:d,photos,notes:await readAllJSON(d,'note_')};
 }
 async function readHidden(woDir){const d=await dirOf(woDir,HIDE,false).catch(()=>null);if(!d)return new Set();
@@ -506,17 +520,18 @@ function renderWO(w){
   const k=w.k;const p=$('p-w'+k);if(!p)return;
   let h=infoHTML(w);
   M.secDefs.forEach((d,si)=>{
-    const s=d.name,r=w.secs[s]||{photos:[],notes:[]},last=r.notes[r.notes.length-1],fv=(last&&last.fields)||{};
+    const s=d.name,r=w.secs[s]||{photos:[],notes:[]},last=r.notes[r.notes.length-1],fv=(!d.log&&last&&last.fields)||{};
     h+=`<div class="sec" id="w${k}_sec${si}" data-dk="s${si}"><div class="sec-hd"><b>${esc(s)}</b><span class="cnt" id="w${k}_cnt${si}">📷 ${r.photos.length} 張${last?` · 最後儲存 ${fmtTs(last.t)} ${esc(last.by||'')}`:''}</span><span class="own" id="w${k}_ow${si}"></span><span class="unsaved">● 未儲存</span><span class="sp"></span>
       <span id="w${k}_lk${si}"></span>
       <label class="btn btn-b btn-s rw-only" style="display:inline-block">➕ 加照片<input type="file" accept="image/*" multiple style="display:none" onchange="addPhotos(${k},${si},this.files);this.value=''"></label></div>
       <div class="sec-bd"><fieldset class="fsx" id="w${k}_fs${si}">
       <div class="drop rw-only" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');addPhotos(${k},${si},event.dataTransfer.files)">把照片拖到這裡，或按右上「➕ 加照片」</div>
       <div class="thumbs" id="w${k}_th${si}">${thumbsHTML(w,si)}</div>
+      ${d.log?`<div class="logs" id="w${k}_lg${si}">${logHTML(d,r)}</div>`:''}
       ${d.fields.length?`<div class="fields">${d.fields.map((f,fi)=>`<label>${esc(f.label)}</label><div>${fieldHTML(k,si,fi,f,fv[f.label])}</div>`).join('')}</div>`:''}
-      <textarea class="inp" id="w${k}_n${si}" placeholder="備註：這個大項的發現、注意事項（其他區域會看到）">${esc(last?last.text:'')}</textarea>
-      <div class="row" style="margin-top:6px"><button class="btn btn-p btn-s rw-only" onclick="saveNote(${k},${si})">💾 儲存</button></div></fieldset>
-      <div class="row" style="margin-top:6px">${r.notes.length>1?`<button class="btn btn-o btn-s" onclick="const e=$('w${k}_hi${si}');e.style.display=e.style.display==='block'?'none':'block'">🕘 修改紀錄（${r.notes.length}）</button>`:''}</div>
+      <textarea class="inp" id="w${k}_n${si}" placeholder="${d.log?'新增一則記事：過程中發現什麼、在哪裡、建議怎麼處理（儲存後會加在上方，不會蓋掉別人的）':'備註：這個大項的發現、注意事項（其他區域會看到）'}">${d.log?'':esc(last?last.text:'')}</textarea>
+      <div class="row" style="margin-top:6px"><button class="btn btn-p btn-s rw-only" onclick="saveNote(${k},${si})">${d.log?'➕ 新增記事':'💾 儲存'}</button></div></fieldset>
+      <div class="row" style="margin-top:6px">${!d.log&&r.notes.length>1?`<button class="btn btn-o btn-s" onclick="const e=$('w${k}_hi${si}');e.style.display=e.style.display==='block'?'none':'block'">🕘 修改紀錄（${r.notes.length}）</button>`:''}</div>
       <div class="hist" id="w${k}_hi${si}">${r.notes.slice().reverse().map(n=>`<div>${fmtTs(n.t)} ${esc(n.by||'')}：${esc(Object.entries(n.fields||{}).map(([a,b])=>fieldText({},b)?a+'＝'+fieldText({},b):'').filter(Boolean).join('；'))}${n.text?' '+esc(n.text.slice(0,120)):''}</div>`).join('')}</div>
       </div></div>`;
   });
@@ -524,8 +539,17 @@ function renderWO(w){
   w.dirty.forEach(key=>{const el=key==='info'?$(`w${k}_info`):$(`w${k}_sec${key.slice(1)}`);if(el)el.classList.add('dirty')});
   applyRO(w);loadThumbs(w);
 }
+function logHTML(d,r){if(!r.notes.length)return '<div class="hint" style="padding:4px 0">還沒有記事</div>';
+  return r.notes.slice().reverse().map(n=>{const tags=d.fields.map(f=>{const v=(n.fields||{})[f.label];const t=fieldText(f,v);return t?(Array.isArray(v)?v.map(x=>`<span class="lt">${esc(x)}</span>`).join(''):`<span class="lt">${esc(f.label)}：${esc(t)}</span>`):''}).join('');
+    return `<div class="le"><div class="lm">${fmtTs(n.t)} · ${esc(n.by||'')}</div>${tags}${esc(n.text||'')}</div>`}).join('')}
 function thumbsHTML(w,si){const s=M.secDefs[si].name,r=w.secs[s]||{photos:[]};
-  return r.photos.map((p,pi)=>`<div class="th" onclick="lbOpen(${w.k},${si},${pi})"><img data-si="${si}" data-pi="${pi}" alt=""><div class="cap">${esc(capOf(p.name))}</div><button class="ed rw-only" title="裁切／旋轉" onclick="event.stopPropagation();photoEditor(${w.k},${si},${pi})">✂ 裁切旋轉</button><button class="x rw-only" title="隱藏這張" onclick="event.stopPropagation();hidePhoto(${w.k},${si},${pi})">✕</button></div>`).join('')}
+  return r.photos.map((p,pi)=>`<div class="thw"><div class="th" onclick="lbOpen(${w.k},${si},${pi})"><img data-si="${si}" data-pi="${pi}" alt=""><div class="cap">${esc(capOf(p.name))}</div><button class="cp rw-only" title="照片說明" onclick="event.stopPropagation();editCap(${w.k},${si},${pi})">📝 說明</button><button class="ed rw-only" title="裁切／旋轉" onclick="event.stopPropagation();photoEditor(${w.k},${si},${pi})">✂ 裁切旋轉</button><button class="x rw-only" title="隱藏這張" onclick="event.stopPropagation();hidePhoto(${w.k},${si},${pi})">✕</button></div>${p.cap?`<div class="tcap">${esc(p.cap)}</div>`:''}</div>`).join('')}
+async function editCap(k,si,pi){
+  const w=W(k),s=M.secDefs[si].name,r=w.secs[s],p=r.photos[pi];if(!p)return;
+  if(!await ensureStage(w,si).catch(e=>{alert(e.message);return false}))return;
+  const t=prompt('照片說明（拍的是什麼、發現什麼；留白＝清除）',p.cap||'');if(t===null)return;
+  busy(true);try{const dir=await dirOf(w.dir,secDir(s));await writeCap(dir,p.name,t.trim());p.cap=t.trim();await touch(w);refreshSecPhotos(w,si);toast('✔ 已儲存照片說明')}catch(e){alert('失敗：'+e.message)}busy(false)}
+async function writeCap(dir,file,text){await writeNew(dir,`cap_${uid()}.json`,JSON.stringify({file,text,t:Date.now(),by:me()}))}
 function capOf(n){const m=n.match(/_(\d{8})-(\d{4})\d*_/);const by=(n.match(/_by-([^_.]+)/)||[])[1];return (m?`${m[1].slice(4,6)}/${m[1].slice(6,8)} ${m[2].slice(0,2)}:${m[2].slice(2)}`:n)+(by?' '+by:'')}
 async function urlOf(w,p){if(!p.url){p.url=URL.createObjectURL(await p.h.getFile());w.urls.push(p.url)}return p.url}
 async function loadThumbs(w,onlySi){
@@ -552,11 +576,13 @@ async function saveNote(k,si){
   if(!need())return;const w=W(k),d=M.secDefs[si],s=d.name;
   busy(true);const okE=await ensureStage(w,si).catch(e=>{alert(e.message);return false});busy(false);if(!okE)return;
   const fields={};d.fields.forEach((f,fi)=>{fields[f.label]=fieldVal(k,si,fi,f)});
+  if(d.log&&!$(`w${k}_n${si}`).value.trim()&&!Object.values(fields).some(v=>Array.isArray(v)?v.length:v&&typeof v==='object'?Object.keys(v).length:v)){toast('請先輸入記事內容');return}
   const rec={wo:w.wo,sec:s,text:$(`w${k}_n${si}`).value.trim(),fields,t:Date.now(),by:me()+(AUTH&&AUTH!==me()?'（授權：'+AUTH+'）':'')};
   busy(true);try{const dir=await dirOf(w.dir,secDir(s));await writeNew(dir,`note_${uid()}.json`,JSON.stringify(rec));
     w.secs[s]=w.secs[s]||{photos:[],notes:[]};w.secs[s].dir=dir;w.secs[s].notes.push(rec);await touch(w);
     w.dirty.delete('s'+si);$(`w${k}_sec${si}`).classList.remove('dirty');
-    refreshSecPhotos(w,si);toast('✔ 已儲存 '+s);
+    if(d.log){$(`w${k}_lg${si}`).innerHTML=logHTML(d,w.secs[s]);$(`w${k}_n${si}`).value='';d.fields.forEach((f,fi)=>{const el=$(`w${k}_f${si}_${fi}`);if(!el)return;if(el.tagName==='INPUT')el.value='';else el.querySelectorAll('.chip').forEach(c=>c.classList.remove('on','yes','no'))})}
+    refreshSecPhotos(w,si);toast(d.log?'✔ 已新增記事':'✔ 已儲存 '+s);
   }catch(e){alert('儲存失敗：'+e.message)}busy(false);renderTabs();
 }
 async function touch(w){await writeInfo(w,cur=>(cur.status===M.statuses[0]&&M.statuses[1])?{status:M.statuses[1]}:{})}
@@ -597,13 +623,14 @@ function inferOwners(w){const o={};
       r.photos.forEach(p=>{const m=p.name.match(/_(\d{8}-\d{6})_.*_by-([^_.]+)/);if(m&&(!best||m[1]<best.t))best={t:m[1],by:byShort(m[2])}})});
     if(best)o[st]=best.by});
   w.inferred=o}
-function canEditStage(w,st){if(isGuest())return false;if(isDone(w))return authOK();const o=ownerOf(w,st);return !o||o===me()||authOK()}
+function canEditStage(w,st){if(isGuest())return false;if(isDone(w))return authOK();if(st===SHARED)return true;const o=ownerOf(w,st);return !o||o===me()||authOK()}
 // 寫入某大項前檢查；沒有負責人時由目前使用者認領
 async function ensureStage(w,si){
   if(guestBlock())return false;
   if(!me()){askMe();toast('請先選擇你的名字');return false}
   await readLatestInfo(w);const st=stageOf(si);
   if(isDone(w)&&!authOK()){applyRO(w);if(!await askAuth(`${w.wo} 已${DONE()}（唯讀），修改需要授權。`))return false}
+  if(st===SHARED){applyRO(w);return true}
   const o=ownerOf(w,st);
   if(o&&o!==me()&&!authOK()){applyRO(w);
     if(!confirm(`「${st}」階段的負責人是 ${o}。\n請 ${o} 轉交給你，或由授權人員授權修改。\n\n現在輸入授權 PIN 嗎？`))return false;
@@ -619,7 +646,7 @@ function applyRO(w){
     return `<span>${esc(st)}：<b style="color:var(--grey1)">${o?esc(o):'—（第一個儲存的人）'}</b>${can?` <button class="btn btn-o btn-s" style="padding:2px 8px" onclick="transferStage(${k},'${esc(st)}')">轉交</button>`:''}</span>`}).join('');
   M.secDefs.forEach((d,si)=>{const st=stageOf(si),o=ownerOf(w,st),ro=!canEditStage(w,st);
     const sec=$(`w${k}_sec${si}`);if(!sec)return;sec.classList.toggle('ro',ro);$(`w${k}_fs${si}`).disabled=ro;
-    $(`w${k}_ow${si}`).textContent=(ro?'🔒 ':'👤 ')+st+(o?'：'+o:'');
+    $(`w${k}_ow${si}`).textContent=st===SHARED?'👥 共用（大家都可新增）':(ro?'🔒 ':'👤 ')+st+(o?'：'+o:'');
     $(`w${k}_lk${si}`).innerHTML=ro&&!done&&!g?`<button class="btn btn-o btn-s" onclick="askAuth('修改 ${esc(o)} 負責的「${esc(st)}」階段')">🔑 授權修改</button>`:''});
 }
 let PICK=null;
@@ -677,7 +704,7 @@ async function hidePhoto(k,si,pi){
 async function hideRec(w,s,p){const d=await dirOf(w.dir,HIDE);await writeNew(d,`hide_${uid()}.json`,JSON.stringify({files:[secDir(s)+'/'+p.name],t:Date.now(),by:me()}))}
 let LBW=null,LBL=[],LBi=0;
 function lbOpen(k,si,pi){const w=W(k);LBW=w;LBL=[];M.secDefs.forEach((d,i)=>(w.secs[d.name]||{photos:[]}).photos.forEach((p,j)=>{if(i===si&&j===pi)LBi=LBL.length;LBL.push({sec:d.name,p})}));lbShow();$('lb').classList.add('on')}
-async function lbShow(){const it=LBL[LBi];if(!it)return;$('lbImg').src=await urlOf(LBW,it.p);$('lbCap').textContent=`${it.sec} · ${capOf(it.p.name)} · ${LBi+1}/${LBL.length}`}
+async function lbShow(){const it=LBL[LBi];if(!it)return;$('lbImg').src=await urlOf(LBW,it.p);$('lbCap').textContent=`${it.sec} · ${capOf(it.p.name)}${it.p.cap?' · '+it.p.cap:''} · ${LBi+1}/${LBL.length}`}
 function lbGo(n){LBi=(LBi+n+LBL.length)%LBL.length;lbShow()}
 function lbClose(){$('lb').classList.remove('on')}
 document.addEventListener('keydown',e=>{if(!$('lb').classList.contains('on'))return;if(e.key==='ArrowLeft')lbGo(-1);if(e.key==='ArrowRight')lbGo(1);if(e.key==='Escape')lbClose()});
@@ -721,7 +748,7 @@ async function photoEditor(k,si,pi){
       const blob=await new Promise(res=>out.toBlob(res,'image/jpeg',0.85));
       busy(true,'儲存照片中…');
       try{const base=p.name.replace(/(_e\d+)?\.jpe?g$/i,'');const dir=await dirOf(w.dir,secDir(s));
-        await writeNew(dir,`${base}_e${Date.now().toString(36)}.jpg`,blob);
+        const nn=`${base}_e${Date.now().toString(36)}.jpg`;await writeNew(dir,nn,blob);if(p.cap)await writeCap(dir,nn,p.cap);
         await hideRec(w,s,p);await touch(w);
         w.secs[s]=await readSection(w.dir,s,await readHidden(w.dir));refreshSecPhotos(w,si);peClose();toast('✔ 照片已更新（原始照片仍保留在資料夾）')}
       catch(er){alert('儲存失敗：'+er.message)}
@@ -737,9 +764,12 @@ async function printWO(k){
     <td><b>Model</b> ${esc(i.model)}</td><td><b>S/N</b> ${esc(i.sn)}</td><td><b>入廠日</b> ${esc(i.inDate)}</td></tr></table>
     ${i.note?`<div class="pr-note" style="margin-top:4px"><b>備註：</b>${esc(i.note)}</div>`:''}</div>`;
   for(const d of M.secDefs){const r=w.secs[d.name]||{photos:[],notes:[]},last=r.notes[r.notes.length-1];
+    if(d.log){if(!r.photos.length&&!r.notes.length)continue;
+      const imgs=[];for(const p of r.photos){try{imgs.push(`<figure><img src="${await urlOf(w,p)}"><figcaption>${esc(capOf(p.name))}${p.cap?'<br>'+esc(p.cap):''}</figcaption></figure>`)}catch(e){}}
+      h+=`<div class="pr-sec"><h2>${esc(d.name)}</h2>${r.notes.map(n=>`<div class="pr-note">• ${fmtTs(n.t)} ${esc(n.by||'')}：${esc(d.fields.map(x=>fieldText(x,(n.fields||{})[x.label])).filter(Boolean).join('、'))}${n.text?' '+esc(n.text):''}</div>`).join('')}<div class="pr-ph">${imgs.join('')}</div></div>`;continue}
     const f=last&&last.fields?d.fields.map(x=>{const t=fieldText(x,last.fields[x.label]);return t?`${x.label}：${t}`:''}).filter(Boolean).join('\n'):'';
     if(!r.photos.length&&!f&&!(last&&last.text))continue;
-    const imgs=[];for(const p of r.photos){try{imgs.push(`<figure><img src="${await urlOf(w,p)}"><figcaption>${esc(capOf(p.name))}</figcaption></figure>`)}catch(e){}}
+    const imgs=[];for(const p of r.photos){try{imgs.push(`<figure><img src="${await urlOf(w,p)}"><figcaption>${esc(capOf(p.name))}${p.cap?'<br>'+esc(p.cap):''}</figcaption></figure>`)}catch(e){}}
     h+=`<div class="pr-sec"><h2>${esc(d.name)}</h2>${f?`<div class="pr-note">${esc(f)}</div>`:''}${last&&last.text?`<div class="pr-note">${esc(last.text)}</div>`:''}<div class="pr-ph">${imgs.join('')}</div></div>`}
   $('printArea').innerHTML=h;busy(false);
   await Promise.all([...$('printArea').querySelectorAll('img')].map(im=>im.complete?1:new Promise(r=>{im.onload=im.onerror=r})));
@@ -757,13 +787,13 @@ async function askMe(){
 function setMe(n){lsSet(ME_KEY,n);$('meDlg').classList.remove('on');if(AUTH&&(n===GUEST||(AUTH!==n&&AUTH!=='管理者'))){AUTH=null;paintAuth()}paintMe();OPEN.forEach(applyRO);toast(n===GUEST?'👀 訪客模式：只能瀏覽':'你好，'+n)}
 
 // ═══ 大項欄位文字格式 ═══
-function secDefText(defs){return defs.map(d=>[d.name+(d.stage?' ＠'+d.stage:''),...d.fields.map(f=>`  ${f.type}：${f.label}${f.opts&&f.opts.length?'＝'+f.opts.join(','):''}`)].join('\n')).join('\n\n')}
+function secDefText(defs){return defs.map(d=>[d.name+(d.stage?' ＠'+d.stage:'')+(d.log?' ＃記事':''),...d.fields.map(f=>`  ${f.type}：${f.label}${f.opts&&f.opts.length?'＝'+f.opts.join(','):''}`)].join('\n')).join('\n\n')}
 function parseSecDef(t){
   const defs=[],errs=[];let cur=null;
   t.split('\n').forEach((raw,n)=>{const line=raw.replace(/\t/g,'  ');if(!line.trim())return;
-    if(!/^\s/.test(line)){const parts=line.trim().split(/[@＠]/);const name=parts[0].trim(),stage=(parts[1]||'').trim()||defStage(name);if(!/^\S+\s+\S/.test(name)){errs.push(`第 ${n+1} 行：大項要寫「代碼 名稱」`);return}
+    if(!/^\s/.test(line)){let hd=line.trim();const log=/[#＃]記事/.test(hd);hd=hd.replace(/[#＃]記事/,'').trim();const parts=hd.split(/[@＠]/);const name=parts[0].trim(),stage=(parts[1]||'').trim()||defStage(name);if(!/^\S+\s+\S/.test(name)){errs.push(`第 ${n+1} 行：大項要寫「代碼 名稱」`);return}
       if(defs.some(d=>secCode(d.name)===secCode(name)))errs.push(`第 ${n+1} 行：代碼「${secCode(name)}」重複`);
-      cur={name,stage,fields:[]};defs.push(cur);return}
+      cur={name,stage,fields:[]};if(log)cur.log=true;defs.push(cur);return}
     if(!cur){errs.push(`第 ${n+1} 行：欄位前面要先有大項`);return}
     const m=line.trim().match(/^([^：:]+)[：:]\s*([^＝=]+?)\s*(?:[＝=]\s*(.*))?$/);
     if(!m){errs.push(`第 ${n+1} 行：格式要「類型：欄位名稱」`);return}
